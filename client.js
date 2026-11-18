@@ -66,6 +66,8 @@ window.__ModuleLoader__.load({
 .htx-btnPrimary{border-color:transparent;background:var(--dsw-alias-button-primary-fill);color:var(--dsw-alias-label-primary-foreground)}
 .htx-btnPrimary:hover:not(:disabled){background:var(--dsw-alias-button-primary-hover)}
 .htx-btnDanger{color:var(--dsw-alias-state-error-primary)}
+.htx-btnOk{color:var(--dsw-alias-state-success-primary,#1a7f37);border-color:var(--dsw-alias-state-success-primary,#1a7f37)}
+.htx-btnDim{color:var(--dsw-alias-label-tertiary)}
 .htx-btnSm{height:24px;padding:0 9px;font-size:11.5px;border-radius:7px}
 .htx-seg{display:inline-flex;border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;overflow:hidden;background:var(--dsw-alias-bg-base)}
 .htx-segBtn{height:28px;padding:0 13px;border:none;background:0 0;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
@@ -1339,6 +1341,7 @@ window.__ModuleLoader__.load({
     function PowerfulView() {
       const [date, setDate] = useState('');           // '' = 最新交易日
       const [sort, setSort] = useState({ key: null, dir: null });
+      const [addedFlash, setAddedFlash] = useState({});
       const data = useData(() => api('powerful', date ? { date } : {}), [date], { refreshMs: 120_000 });
       const v = data.value || {};
       const items = v.items || [];
@@ -1346,12 +1349,24 @@ window.__ModuleLoader__.load({
       const dates = v.dates || [];
       const isLatest = !date || date === (dates.find((d) => d.isLatest)?.date || '');
 
+      const [adding, setAdding] = useState(null);
       const quickAdd = async (code) => {
+        const c = String(code ?? '').trim();
+        if (!/^\d{6}$/.test(c)) { notifyError(`无效代码：${code}`); return; }
+        if (adding === c) return;
+        setAdding(c);
         try {
-          const res = await api('watchlist.add', { symbols: [code] });
-          if (res.added?.length) notifyOk(`已加入自选：${code}`);
-          else notifyWarn(`${code} 已在自选`);
-        } catch (e) { notifyError(e.message); }
+          const res = await api('watchlist.add', { symbols: [c] });
+          if (res.added?.length) {
+            const it = res.added[0];
+            notifyOk(`已加入自选：${it.name || ''}(${c})`);
+            setAddedFlash((f) => ({ ...f, [c]: 'added' }));
+          } else {
+            notifyWarn(`${res.existed?.[0]?.name || c} 已在自选`);
+            setAddedFlash((f) => ({ ...f, [c]: 'exists' }));
+          }
+        } catch (e) { notifyError(`加入自选失败：${e.message}`); }
+        finally { window.setTimeout(() => setAdding(null), 600); }
       };
 
       const columns = [
@@ -1379,7 +1394,20 @@ window.__ModuleLoader__.load({
           sortValue: (r) => r.latestPct ?? null,
           headerTitle: '该股当前实时涨跌幅（隔日视角）',
         },
-        { label: '', render: (r) => h('button', { className: 'htx-btn htx-btnSm', onClick: () => quickAdd(r.code) }, '+ 自选') },
+        {
+          label: '', render: (r) => {
+            const c = String(r.code);
+            const flash = addedFlash[c];
+            const isBusy = adding === c;
+            return h('button', {
+              className: 'htx-btn htx-btnSm' + (flash === 'added' ? ' htx-btnOk' : '') + (flash === 'exists' ? ' htx-btnDim' : ''),
+              style: flash ? { opacity: 0.75 } : undefined,
+              disabled: isBusy,
+              title: flash === 'added' ? '已加入自选' : flash === 'exists' ? '已在自选中' : '点击加入自选',
+              onClick: () => quickAdd(c),
+            }, isBusy ? '加入中…' : flash === 'added' ? '✓ 已加' : flash === 'exists' ? '已在' : '+ 自选');
+          },
+        },
       ];
 
       const onSortChange = (key) => setSort((s) => (
