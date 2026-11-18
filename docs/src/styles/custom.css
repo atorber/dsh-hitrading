@@ -47,13 +47,12 @@
   font-size: 0.85rem;
 }
 
-/* 首页功能卡片：六卡等高。
+/* 首页功能卡片：七卡等高。
    注意：Starlight 有全局规则 `.sl-markdown-content :not(...)+:not(...){margin-top:1rem}`
    会给相邻块级元素加 16px 上边距（导致卡片错位、行高不齐），必须在这里压掉。 */
 .sl-markdown-content .feature-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
   grid-auto-rows: 1fr;
   gap: 0.9rem;
   margin: 1.5rem 0;

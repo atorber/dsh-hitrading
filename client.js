@@ -1471,6 +1471,181 @@ window.__ModuleLoader__.load({
                 ' 强势股仅供短线情绪观察，不构成投资建议。'))));
     }
 
+    // ---------- 涨停板 ----------
+    const BOARD_CN = ['', '首', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+    const boardLabel = (n) => {
+      const k = Number(n);
+      if (!Number.isFinite(k) || k < 1) return '未知';
+      return k <= 10 ? `${BOARD_CN[k]}板` : `${k}连板`;
+    };
+
+    function LimitUpView() {
+      const [date, setDate] = useState('');           // '' = 最新交易日
+      const [board, setBoard] = useState(null);       // null = 全部连板梯队
+      const [sort, setSort] = useState({ key: null, dir: null });
+      const [adding, setAdding] = useState(null);
+      const [addedFlash, setAddedFlash] = useState({});
+      const data = useData(() => api('limitup', date ? { date } : {}), [date], { refreshMs: 60_000 });
+      const v = data.value || {};
+      const items = v.items || [];
+      const groups = v.groups || [];
+      const st = v.stats || {};
+      const dates = v.dates || [];
+      const latestDate = dates.find((d) => d.isLatest)?.date || '';
+      const active = date || latestDate;
+      const isLatest = !date || !latestDate || date === latestDate;
+
+      const quickAdd = async (code) => {
+        const c = String(code ?? '').trim();
+        if (!/^\d{6}$/.test(c)) { notifyError(`无效代码：${code}`); return; }
+        if (adding === c) return;
+        setAdding(c);
+        try {
+          const res = await api('watchlist.add', { symbols: [c] });
+          if (res.added?.length) {
+            notifyOk(`已加入自选：${res.added[0].name || ''}(${c})`);
+            setAddedFlash((f) => ({ ...f, [c]: 'added' }));
+          } else {
+            notifyWarn(`${res.existed?.[0]?.name || c} 已在自选`);
+            setAddedFlash((f) => ({ ...f, [c]: 'exists' }));
+          }
+        } catch (e) { notifyError(`加入自选失败：${e.message}`); }
+        finally { window.setTimeout(() => setAdding(null), 600); }
+      };
+
+      const metric = (label, value, cls) => h('div', { className: 'htx-metric' },
+        h('p', { className: 'htx-metricLabel' }, label),
+        h('p', { className: 'htx-metricValue' + (cls ? ' ' + cls : '') }, value));
+
+      const columns = [
+        { label: '代码', render: (r) => h('span', { style: { fontWeight: 600 } }, r.code) },
+        { label: '名称', render: (r) => r.name },
+        {
+          label: '连板', align: 'right', sortable: true,
+          render: (r) => h('span', {
+            className: 'htx-badge' + ((r.lbc || 1) > 1 ? ' htx-badgeUp' : ' htx-badgeFlat'),
+            title: (r.lbc || 1) > 1 ? `连续 ${r.lbc} 个交易日涨停` : '当日首次涨停',
+          }, boardLabel(r.lbc || 1)),
+          className: (r) => (Number(r.lbc || 1) > 1 ? 'htx-up' : ''),
+          sortValue: (r) => r.lbc || 1,
+          headerTitle: '东财涨停池 lbc：当前连续涨停板数（非区间累计板数）',
+        },
+        { label: '现价', align: 'right', sortable: true, render: (r) => r.price ?? '-', sortValue: (r) => r.price ?? null },
+        {
+          label: '涨幅', align: 'right', sortable: true,
+          render: (r) => (r.pct == null ? '-' : `${r.pct > 0 ? '+' : ''}${r.pct}%`),
+          className: () => 'htx-up', sortValue: (r) => r.pct ?? null,
+        },
+        { label: '成交额(亿)', align: 'right', sortable: true, render: (r) => r.amountYi ?? '-', sortValue: (r) => r.amountYi ?? null },
+        { label: '换手%', align: 'right', sortable: true, render: (r) => r.turnover ?? '-', sortValue: (r) => r.turnover ?? null },
+        { label: '首封', align: 'right', render: (r) => r.fbt || '-', headerTitle: '首次封板时间' },
+        { label: '最后封板', align: 'right', render: (r) => r.lbt || '-' },
+        {
+          label: '炸板', align: 'right', sortable: true,
+          render: (r) => (r.zbc == null ? '-' : r.zbc > 0 ? h('span', { className: 'htx-down', title: '盘中曾打开涨停' }, String(r.zbc)) : '0'),
+          sortValue: (r) => r.zbc ?? null,
+          headerTitle: '盘中打开涨停次数（0 = 一字/硬板未开板）',
+        },
+        { label: '封单(万)', align: 'right', sortable: true, render: (r) => (r.fundWan == null ? '-' : r.fundWan.toLocaleString('zh-CN')), sortValue: (r) => r.fundWan ?? null },
+        { label: '流通市值(亿)', align: 'right', sortable: true, render: (r) => r.floatMcapYi ?? '-', sortValue: (r) => r.floatMcapYi ?? null },
+        { label: '行业', render: (r) => r.industry || '-' },
+        {
+          label: '', render: (r) => {
+            const c = String(r.code);
+            const flash = addedFlash[c];
+            const isBusy = adding === c;
+            return h('button', {
+              className: 'htx-btn htx-btnSm' + (flash === 'added' ? ' htx-btnOk' : '') + (flash === 'exists' ? ' htx-btnDim' : ''),
+              style: flash ? { opacity: 0.75 } : undefined,
+              disabled: isBusy,
+              title: flash === 'added' ? '已加入自选' : flash === 'exists' ? '已在自选中' : '点击加入自选',
+              onClick: () => quickAdd(c),
+            }, isBusy ? '加入中…' : flash === 'added' ? '✓ 已加' : flash === 'exists' ? '已在' : '+ 自选');
+          },
+        },
+      ];
+
+      const onSortChange = (key) => setSort((s) => (
+        s.key !== key ? { key, dir: 'desc' } : s.dir === 'desc' ? { key, dir: 'asc' } : { key: null, dir: null }
+      ));
+      const sortCol = sort.key && sort.dir ? columns.find((c) => c.label === sort.key) : null;
+      const filtered = board == null ? items : items.filter((r) => (r.lbc || 1) === board);
+      const displayRows = sortCol && sortCol.sortValue
+        ? [...filtered].sort((a, b) => {
+            const va = sortCol.sortValue(a), vb = sortCol.sortValue(b);
+            if (va == null && vb == null) return 0;
+            if (va == null) return 1;
+            if (vb == null) return -1;
+            return sort.dir === 'asc' ? va - vb : vb - va;
+          })
+        : [...filtered].sort((a, b) => (b.lbc || 1) - (a.lbc || 1) || String(a.fbt || '').localeCompare(String(b.fbt || '')));
+
+      return h('div', { className: 'htx-split' },
+        // 左侧交易日导航（涨停家数）
+        h('div', { className: 'htx-dateNav', role: 'navigation', 'aria-label': '交易日列表' },
+          h('span', { className: 'htx-fieldLabel', style: { padding: '0 4px 2px' } }, '交易日'),
+          dates.map((d) => h('button', {
+            key: d.date,
+            type: 'button',
+            className: 'htx-dateNavBtn' + (active === d.date ? ' htx-dateNavOn' : ''),
+            onClick: () => { setDate(d.isLatest ? '' : d.date); setBoard(null); },
+            title: d.isLatest ? '最新交易日（盘中实时）' : `${d.date} 涨停板`,
+          },
+            h('span', { className: 'htx-dateNavDate' }, d.date.slice(5), h('span', { className: 'htx-dateNavWk' }, ' ' + WEEK[new Date(d.date + 'T00:00:00').getDay()])),
+            d.isLatest
+              ? h('span', { className: 'htx-dateNavCnt' }, '实时')
+              : h('span', { className: 'htx-dateNavCnt' }, d.count != null ? `${d.count}只` : '·'))),
+          h('span', { className: 'htx-dateNavHint' }, '点击日期切换；数据源为东财涨停看板，历史日期为收盘定稿数据')),
+
+        // 右侧内容
+        h('div', { style: { flex: 1, minWidth: 0 } },
+          h('div', { className: 'htx-toolbar' },
+            h('div', { className: 'htx-row', style: { marginBottom: 0 } },
+              h('h3', { className: 'htx-cardTitle', style: { margin: 0 } }, `涨停板 · ${v.date || '加载中'}`),
+              isLatest
+                ? h('span', { className: 'htx-badge htx-badgeUp' }, '盘中实时')
+                : h('span', { className: 'htx-badge htx-badgeFlat' }, '已收盘')),
+            h('span', { className: 'htx-meta' },
+              `涨停 ${items.length} 只 · 首板 ${st.firstCount ?? 0} · 连板 ${st.againCount ?? 0} · 最高 ${st.maxBoard || '-'}`,
+              data.updatedAt ? ` · ${new Date(data.updatedAt).toLocaleTimeString('zh-CN', { hour12: false })}` : '',
+              data.error ? h('span', { className: 'htx-metaWarn', title: `刷新失败：${data.error}` }, ' · 刷新失败') : null),
+            h(RefreshBtn, { busy: data.refreshing, onClick: () => data.reload(), label: '立即刷新涨停板' })),
+
+          data.value == null
+            ? (data.error ? h(ErrorBox, { error: data.error }) : h(Spinner))
+            : h('div', null,
+              h('div', { className: 'htx-metrics' },
+                metric('涨停家数', String(st.count ?? 0)),
+                metric('首板', String(st.firstCount ?? 0)),
+                metric('连板(≥2板)', String(st.againCount ?? 0), 'htx-up'),
+                metric('最高板', st.maxBoard || '-', 'htx-up'),
+                metric('曾炸板', String(st.brokenCount ?? 0)),
+                metric('平均封单(万)', st.avgFundWan == null ? '-' : st.avgFundWan.toLocaleString('zh-CN')),
+                metric('封单合计(亿)', st.totalFundYi == null ? '-' : String(st.totalFundYi))),
+
+              // 连板梯队：点击筛选
+              groups.length ? h('div', { className: 'htx-catChips', role: 'group', 'aria-label': '连板梯队筛选' },
+                h('button', {
+                  type: 'button', className: 'htx-catChip', 'aria-pressed': board == null,
+                  onClick: () => setBoard(null),
+                }, '全部 ', h('b', null, String(items.length))),
+                groups.map((g) => h('button', {
+                  key: g.lbc, type: 'button', className: 'htx-catChip', 'aria-pressed': board === g.lbc,
+                  onClick: () => setBoard(board === g.lbc ? null : g.lbc),
+                  title: `${g.label}：${g.count} 只（点击筛选）`,
+                }, g.label, ' ', h('b', null, String(g.count))))) : null,
+
+              !displayRows.length ? h(Empty, { text: `${v.date} 没有涨停股票` })
+                : h('div', { className: 'htx-card', style: { padding: 0, overflowX: 'auto' } },
+                  h(DataTable, { columns, rows: displayRows, getKey: (r) => r.code, sort, onSortChange })),
+
+              h('p', { className: 'htx-chartNote' },
+                '数据源：东方财富涨停看板。', h('b', null, '连板'), '按当前连续涨停板数（lbc）分组，1 板=首板、2 板=二板…；',
+                h('b', null, '炸板'), '为盘中打开涨停次数，', h('b', null, '封单'), '为收盘/当前封单资金。',
+                isLatest ? ' 最新交易日为盘中实时数据（60 秒自动刷新），可能开板或新增，收盘后定稿。' : ' 历史日期为收盘定稿数据。',
+                ' 涨停板仅供短线情绪观察，不构成投资建议。'))));
+    }
+
     // ---------- 持仓 ----------
     function PortfolioView() {
       const [form, setForm] = useState({ symbol: '', shares: '', costPrice: '' });
@@ -2308,6 +2483,43 @@ POST /api
 }`,
       },
       {
+        op: 'limitup', title: '涨停板（按连板梯队分组，最近 10 个交易日）',
+        params: [
+          ['date', 'string', '否', '交易日 YYYY-MM-DD，默认最新交易日；仅支持最近 10 个交易日'],
+        ],
+        req: `GET /api?op=limitup
+GET /api?op=limitup&date=2026-11-18
+
+POST /api
+{"op":"limitup","args":{"date":"2026-11-18"}}`,
+        res: `{
+  "ok": true,
+  "value": {
+    "date": "2026-11-18",
+    "dates": [
+      { "date": "2026-11-18", "count": 41, "isLatest": true },
+      { "date": "2026-11-17", "count": 37, "isLatest": false }
+      // …共最近 10 个交易日；count 为当日涨停家数
+    ],
+    "items": [
+      { "code": "002685", "name": "华东重机", "price": 7.37, "pct": 10,
+        "amountYi": 1.63, "floatMcapYi": 74.26, "totalMcapYi": 74.27,
+        "turnover": 2.2, "lbc": 4, "fbt": "09:25:00", "lbt": "09:25:00",
+        "fundWan": 53215, "zbc": 0, "industry": "工程机械",
+        "zttj": { "days": 4, "ct": 4 } }
+    ],
+    "groups": [ { "lbc": 1, "label": "首板", "count": 33 },
+                { "lbc": 2, "label": "二板", "count": 7 },
+                { "lbc": 4, "label": "四板", "count": 1 } ],
+    "stats": { "count": 41, "firstCount": 33, "againCount": 8,
+               "maxLbc": 4, "maxBoard": "四板", "brokenCount": 19,
+               "avgFundWan": 9375, "totalFundYi": 38.44 },
+    "note": "涨停池按当前连续涨停板数（lbc）分组，1=首板、2=二板…",
+    "source": "eastmoney"
+  }
+}`,
+      },
+      {
         op: 'news', title: '快讯 / 公告 / 龙虎榜',
         params: [
           ['type', 'string', '是', 'news 快讯 / announcement 公告 / lhb 龙虎榜'],
@@ -2631,6 +2843,10 @@ curl -X POST http://127.0.0.1:8099/api \\
         prompts: ['今天有哪些强势股？', '看看 11 月 6 日的强势股都是哪些，连板高度如何'],
       },
       {
+        tool: 'hitrading_limitup', desc: '涨停板：按连板梯队（首板/二板/三板…）列出当日涨停股',
+        prompts: ['今天涨停板有哪些票？首板和连板各多少', '看看 11 月 18 日的最高连板是几板'],
+      },
+      {
         tool: 'hitrading_watchlist', desc: '自选股增删查（与面板共享）',
         prompts: ['把 600519 加入自选', '看看我的自选股现在什么情况'],
       },
@@ -2796,6 +3012,7 @@ curl -X POST http://127.0.0.1:8099/api \\
         ['自选', '加自选、看实时行情表；点个股代码看 K线图 + 指标详情'],
         ['量能', '沪深京三市日成交额趋势（柱 + MA5）：区间 20/40/60 日、量能状态、指数涨跌与明细表'],
         ['强势股', '按交易日看当日涨幅 > 7% 的股票：左侧日期导航切换，含涨停连板、首封时间、行业与最新涨跌'],
+        ['涨停板', '按连板梯队（首板/二板/三板…）列出当日涨停股：封单、炸板、封板时间、行业，左侧日期导航与涨停家数'],
         ['龙虎榜', '每日龙虎榜：资金摘要、多空分歧榜、上榜原因与净买额排序'],
         ['快讯', 'A股 7×24 快讯：监管/宏观/行情分类标记、监管动态提醒、只看自选'],
         ['公告', '个股公告：类型分类（业绩/激励/并购/增减持/分红/融资/治理）、按代码查询、一键加自选'],
@@ -2804,12 +3021,12 @@ curl -X POST http://127.0.0.1:8099/api \\
         ['选股', '按涨跌幅/成交额/换手/市值排序，叠加市盈率、市值、涨幅、换手区间过滤'],
         ['回测', '双均线/MACD/RSI 策略回测，出权益曲线、收益、回撤、夏普、胜率'],
         ['预警', '设置价格/涨跌幅阈值，交易时段由定时器检查并标记「已触发」'],
-        ['Agent 技能', '11 个工具的可复制提示词示例——照抄到对话框即可'],
+        ['Agent 技能', '13 个工具的可复制提示词示例——照抄到对话框即可'],
         ['API', '独立 HTTP 服务的完整接口文档（参数表 + 请求/响应示例）'],
       ];
       return h('div', { className: 'htx-api' },
         h2('HiTrading 是什么'),
-        block(h('p', null, '一个运行在 DeepSeek Harness 内的 A股研究助手：**11 个 Agent 工具 + 一个可交互控制台**。数据存在本机 SQLite，纯分析，不连接券商、不真实下单。')),
+        block(h('p', null, '一个运行在 DeepSeek Harness 内的 A股研究助手：**13 个 Agent 工具 + 一个可交互控制台**。数据存在本机 SQLite，纯分析，不连接券商、不真实下单。')),
 
         h2('三种用法'),
         block(h('p', null, h('b', null, '① 控制台：'), '点左侧栏 HiTrading 图标，用下面这些 Tab 直接点击操作。')),
@@ -2848,6 +3065,7 @@ node server.js          # 默认 http://127.0.0.1:8099
       { id: 'market', label: '自选', group: 'work', render: () => h(MarketView) },
       { id: 'energy', label: '量能', group: 'work', render: () => h(EnergyView) },
       { id: 'powerful', label: '强势股', group: 'work', render: () => h(PowerfulView) },
+      { id: 'limitup', label: '涨停板', group: 'work', render: () => h(LimitUpView) },
       { id: 'lhb', label: '龙虎榜', group: 'work', render: () => h(LhbView) },
       { id: 'news', label: '快讯', group: 'work', render: () => h(NewsFlashView) },
       { id: 'announcement', label: '公告', group: 'work', render: () => h(AnnouncementView) },

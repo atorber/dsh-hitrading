@@ -130,6 +130,31 @@ function renderPowerful(v) {
   return lines.join('\n');
 }
 
+function renderLimitUp(v) {
+  if (v.error) return `HiTrading 涨停板查询失败：${v.error}`;
+  const f = (n) => (n == null ? '-' : n);
+  const st = v.stats || {};
+  const lines = [
+    `## 涨停板（${v.date}）`,
+    `涨停 ${f(st.count)} 只：首板 ${f(st.firstCount)} 只、连板 ${f(st.againCount)} 只，最高 ${f(st.maxBoard)}（${f(st.maxLbc)} 板）；曾炸板 ${f(st.brokenCount)} 只，平均封单 ${f(st.avgFundWan)} 万，封单合计 ${f(st.totalFundYi)} 亿。${v.note || ''}`,
+    `连板梯队：${(v.groups || []).map((g) => `${g.label} ${g.count}只`).join(' / ') || '无'}`,
+    `最近交易日涨停家数：${(v.dates || []).map((d) => `${d.date.slice(5)} ${d.count != null ? d.count + '只' : '未统计'}`).join(' / ')}`,
+  ];
+  const rows = (v.items || []).slice(0, 80);
+  if (rows.length) {
+    lines.push(toTable(rows, [
+      { label: '代码', render: (r) => r.code }, { label: '名称', render: (r) => r.name },
+      { label: '连板', render: (r) => (r.lbc > 1 ? `${r.lbc}板` : '首板') },
+      { label: '现价', render: (r) => r.price }, { label: '涨幅%', render: (r) => r.pct },
+      { label: '首封', render: (r) => r.fbt || '-' }, { label: '炸板', render: (r) => r.zbc ?? '-' },
+      { label: '封单(万)', render: (r) => r.fundWan ?? '-' }, { label: '行业', render: (r) => r.industry || '-' },
+    ]));
+    if ((v.items || []).length > rows.length) lines.push(`…共 ${v.items.length} 只，仅显示前 80 只。`);
+  }
+  lines.push('以上为市场数据，仅供研究参考，不构成投资建议。');
+  return lines.join('\n');
+}
+
 function renderWeibo(v) {
   if (v.error) return `HiTrading 微博查询失败：${v.error}`;
   // 任务状态形态
@@ -637,7 +662,19 @@ export function apply(ctx) {
     presentCall: (a) => ({ card: 'generic', title: '强势股', rawInput: a.date || '最新交易日' }),
   }));
 
-  // 8) 微博监控
+  // 8) 涨停板
+  ctx.tools.register(defineTool({
+    name: 'hitrading_limitup',
+    description: '查询涨停板：指定交易日（默认最新交易日）全市场涨停股票，按连板数分组（首板/二板/三板…），含封板时间、封单资金、炸板次数、行业与最近 10 个交易日每日涨停家数。数据源为东财涨停看板，盘中为实时、收盘后定稿。',
+    parameters: {
+      date: { type: 'string', description: '交易日 YYYY-MM-DD（可选，默认最新交易日；仅支持最近 10 个交易日）' },
+    },
+    output: { schema: { type: 'json' }, render: (_a, v) => [{ type: 'text', text: renderLimitUp(v) }] },
+    execute: (args) => runOp('limitup', args, tables),
+    presentCall: (a) => ({ card: 'generic', title: '涨停板', rawInput: a.date || '最新交易日' }),
+  }));
+
+  // 9) 微博监控
   ctx.tools.register(defineTool({
     name: 'hitrading_weibo',
     description: '微博监控：action=list 查询已入库微博（按时间倒序，支持博主/关键词/近 N 天过滤，带点赞/评论/转发数）；action=extract 用模型解析未提取微博里的 A股标的并写入自选（已存在则只更新最后提及时间，已提取过的微博不重复处理）。需本地已运行 Weibo Crawler 服务（默认 127.0.0.1:15001）。',

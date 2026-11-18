@@ -134,6 +134,21 @@ curl -s "http://127.0.0.1:8099/api?op=powerful&date=2026-11-06"
 `value.stats`：`count ztCount maxLbc avgPct`。
 历史日期首次查询会扫描全市场日K（约 20 秒）并按日缓存进 SQLite，之后秒出。
 
+### limitup — 涨停板（按连板梯队分组）
+
+参数：`date`（`YYYY-MM-DD`，可选，默认最新交易日；仅支持最近 10 个交易日）
+
+```bash
+curl -s "http://127.0.0.1:8099/api?op=limitup"
+curl -s "http://127.0.0.1:8099/api?op=limitup&date=2026-11-18"
+```
+
+返回 `value.items[]`：`code name price pct amountYi floatMcapYi totalMcapYi turnover lbc(当前连续涨停板数) fbt(首封时间) lbt(最后封板) fundWan(封单,万元) zbc(炸板次数) industry zttj{days,ct}`；
+`value.groups[]`：`{ lbc, label(首板/二板/三板…), count }`（按 lbc 升序）；
+`value.dates[]`（降序）：`date count(当日涨停家数) isLatest` —— 最近 10 个交易日；
+`value.stats`：`count firstCount againCount maxLbc maxBoard brokenCount avgFundWan totalFundYi`。
+分组口径为**当前连续涨停板数**（`lbc`），不是区间累计板数 `zttj.ct`；最新交易日为盘中实时数据（可能开板/新增），收盘后定稿。
+
 ### weibo — 微博监控与股票提取
 
 参数：`action`（`list` 查看 / `extract` 提取股票）、`page`、`pageSize`（1~50）、`userId`、`keyword`、`days`、`batch`（extract 条数，1~50，默认 20）

@@ -9,7 +9,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'HiTrading',
-      description: 'A股投资助手 —— DeepSeek Harness 插件：11 个 Agent 工具 + 11-Tab 交互控制台，纯分析不下单。',
+      description: 'A股投资助手 —— DeepSeek Harness 插件：13 个 Agent 工具 + 15-Tab 交互控制台，纯分析不下单。',
       logo: { src: './src/assets/logo.svg' },
       favicon: '/favicon.svg',
       customCss: ['./src/styles/custom.css'],
@@ -40,6 +40,7 @@ export default defineConfig({
             { label: '行情自选', slug: 'guide/watchlist' },
             { label: '市场量能', slug: 'guide/energy' },
             { label: '强势股', slug: 'guide/powerful' },
+            { label: '涨停板', slug: 'guide/limitup' },
             { label: '选股', slug: 'guide/screen' },
             { label: '持仓与回测', slug: 'guide/portfolio-backtest' },
             { label: '资讯与预警', slug: 'guide/news-alerts' },
