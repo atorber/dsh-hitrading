@@ -49,7 +49,7 @@ HiTrading 是运行在当前 DeepSeek Harness 内的 **Cordis 插件**，为 Age
 ## 4. 架构分层
 
 ```
-hitrading/                      # 单个 bundle 包 @atorber/hitrading（GitHub: atorber/hitrading）
+dsh-hitrading/                  # 单个 bundle 包 @atorber/hitrading（GitHub: atorber/dsh-hitrading）
 ├── index.js                    # Host 入口：apply(ctx, config)
 ├── client.js                   # Client 入口：UI 面板 + 工具卡片渲染
 ├── cordis.patch.yml            # Loader 插入行

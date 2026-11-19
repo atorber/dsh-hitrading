@@ -37,7 +37,7 @@ jobs:
           if [ -z "$BODY" ]; then
             BODY='HiTrading 发布。
 
-          **安装**：对 DeepSeek Harness 说「帮我安装 GitHub 插件 https://github.com/atorber/hitrading」。'
+          **安装**：对 DeepSeek Harness 说「帮我安装 GitHub 插件 https://github.com/atorber/dsh-hitrading」。'
           fi
           printf '%s\n' "$BODY" > RELEASE_BODY.md
 

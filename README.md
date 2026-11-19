@@ -1,12 +1,12 @@
 # HiTrading — A股投资助手插件
 
-[![CI](https://github.com/atorber/hitrading/actions/workflows/ci.yml/badge.svg)](https://github.com/atorber/hitrading/actions/workflows/ci.yml) [![Release](https://github.com/atorber/hitrading/actions/workflows/release.yml/badge.svg)](https://github.com/atorber/hitrading/releases) [![Docs](https://github.com/atorber/hitrading/actions/workflows/docs.yml/badge.svg)](https://atorber.github.io/hitrading/)
+[![CI](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml) [![Release](https://github.com/atorber/dsh-hitrading/actions/workflows/release.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/releases) [![Docs](https://github.com/atorber/dsh-hitrading/actions/workflows/docs.yml/badge.svg)](https://atorber.github.io/dsh-hitrading/)
 
 运行在当前 DeepSeek Harness 内的 Cordis 插件。为 Agent 提供 **13 个 A股工具**，并在 Web GUI 左侧栏挂出 **HiTrading 交互控制台**（15 个 Tab，所有模块都有 UI）。
 
 > 纯分析与跟踪，**不连接券商、不真实下单**；所有结论附投资风险提示，数据来自公开免费接口。
 
-仓库：[github.com/atorber/hitrading](https://github.com/atorber/hitrading) · 官网文档：[atorber.github.io/hitrading](https://atorber.github.io/hitrading/) · 包名 `@atorber/hitrading` · MIT
+仓库：[github.com/atorber/dsh-hitrading](https://github.com/atorber/dsh-hitrading) · 官网文档：[atorber.github.io/dsh-hitrading](https://atorber.github.io/dsh-hitrading/) · 包名 `@atorber/hitrading` · MIT
 
 ## 交互控制台（UI）
 
@@ -138,16 +138,16 @@ icon.svg            # 图标
 
 对 Harness 的对话说：
 
-> 帮我安装 GitHub 上的插件：https://github.com/atorber/hitrading
+> 帮我安装 GitHub 上的插件：https://github.com/atorber/dsh-hitrading
 
-或直接在 Harness 内通过 `plugin_manager` 安装（`install_bundle`，target 填 `https://github.com/atorber/hitrading`）。安装程序会自动拉取仓库、解析 `@deepseek-ai/dsh-tools` peer 依赖并应用插件补丁。
+或直接在 Harness 内通过 `plugin_manager` 安装（`install_bundle`，target 填 `https://github.com/atorber/dsh-hitrading`）。安装程序会自动拉取仓库、解析 `@deepseek-ai/dsh-tools` peer 依赖并应用插件补丁。
 
 要求：DeepSeek Harness ≥ 0.2.2-rc.1（peer 依赖 `@deepseek-ai/dsh-tools@^0.2.2-rc.1`）。
 
 ### 从本地目录安装（开发）
 
 ```bash
-git clone https://github.com/atorber/hitrading.git
+git clone https://github.com/atorber/dsh-hitrading.git
 # 在 Harness 内：plugin_manager install_bundle target=<仓库绝对路径>
 ```
 
@@ -158,7 +158,7 @@ git clone https://github.com/atorber/hitrading.git
 本插件在 Host 侧 `import` 了 `@deepseek-ai/dsh-tools`（工具定义）。**从 GitHub/registry 安装时**该包由 pnpm 按 `peerDependencies` 自动装进 profile，开箱即用；**本地 `link:` 开发时** pnpm 不会为 link 依赖装 peer，Node ESM 又从插件真实路径向上解析 `node_modules`（插件目录不在 DSH 安装树内），因此需在插件目录建立指向 DSH 安装树的软链：
 
 ```bash
-cd /path/to/hitrading
+cd /path/to/dsh-hitrading
 mkdir -p node_modules
 DSH_NPM_ROOT=$(dirname "$(dirname "$(readlink -f "$(which dsh)")")")/node_modules
 ln -sfn "$DSH_NPM_ROOT/@deepseek-ai" node_modules/@deepseek-ai

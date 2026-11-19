@@ -28,8 +28,8 @@ const card = el('div', {
     text('A-share research assistant for DeepSeek Harness', { fontSize: 34, color: '#aeb9cf', marginTop: 14 }),
   ]),
   el('div', { display: 'flex', flexDirection: 'column' }, [
-    text('11 agent tools · 11-tab console · local HTTP API', { fontSize: 24, color: '#7f8da8' }),
-    text('github.com/atorber/hitrading', { fontSize: 24, color: '#4f9d7a', marginTop: 10 }),
+    text('13 agent tools · 15-tab console · local HTTP API', { fontSize: 24, color: '#7f8da8' }),
+    text('github.com/atorber/dsh-hitrading', { fontSize: 24, color: '#4f9d7a', marginTop: 10 }),
   ]),
 ]);
 

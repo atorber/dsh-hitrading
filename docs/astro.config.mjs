@@ -2,10 +2,10 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
-// 站点部署在 GitHub Pages 项目页：https://atorber.github.io/hitrading
+// 站点部署在 GitHub Pages 项目页：https://atorber.github.io/dsh-hitrading
 export default defineConfig({
   site: 'https://atorber.github.io',
-  base: '/hitrading',
+  base: '/dsh-hitrading',
   integrations: [
     starlight({
       title: 'HiTrading',
@@ -17,10 +17,10 @@ export default defineConfig({
         root: { label: '简体中文', lang: 'zh-CN' },
       },
       social: {
-        github: 'https://github.com/atorber/hitrading',
+        github: 'https://github.com/atorber/dsh-hitrading',
       },
       head: [
-        { tag: 'meta', attrs: { property: 'og:image', content: 'https://atorber.github.io/hitrading/og.png' } },
+        { tag: 'meta', attrs: { property: 'og:image', content: 'https://atorber.github.io/dsh-hitrading/og.png' } },
         { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
         { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
         { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },

@@ -12,9 +12,9 @@ description: 在 DeepSeek Harness 中安装 HiTrading 插件
 
 对 Harness 的对话框说：
 
-> 帮我安装 GitHub 上的插件：https://github.com/atorber/hitrading
+> 帮我安装 GitHub 上的插件：https://github.com/atorber/dsh-hitrading
 
-或让它通过 `plugin_manager` 安装（`install_bundle`，target 填 `https://github.com/atorber/hitrading`）。安装程序会自动拉取仓库、解析 `@deepseek-ai/dsh-tools` peer 依赖并应用插件补丁。
+或让它通过 `plugin_manager` 安装（`install_bundle`，target 填 `https://github.com/atorber/dsh-hitrading`）。安装程序会自动拉取仓库、解析 `@deepseek-ai/dsh-tools` peer 依赖并应用插件补丁。
 
 安装完成后：
 
@@ -23,13 +23,13 @@ description: 在 DeepSeek Harness 中安装 HiTrading 插件
 - 本地 HTTP 服务在 `http://127.0.0.1:8099` 自动启动（EADDRINUSE 时自动退出，不冲突）
 
 :::tip[版本固定]
-想锁定版本可把 target 换成 tag 地址：`https://github.com/atorber/hitrading/releases/tag/v1.0.0`
+想锁定版本可把 target 换成 tag 地址：`https://github.com/atorber/dsh-hitrading/releases/tag/v1.0.0`
 :::
 
 ## 从本地目录安装（开发）
 
 ```bash
-git clone https://github.com/atorber/hitrading.git
+git clone https://github.com/atorber/dsh-hitrading.git
 # 在 Harness 内：plugin_manager install_bundle，target 填仓库绝对路径
 ```
 

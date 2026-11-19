@@ -21,12 +21,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/atorber/hitrading.git"
+    "url": "git+https://github.com/atorber/dsh-hitrading.git"
   },
   "bugs": {
-    "url": "https://github.com/atorber/hitrading/issues"
+    "url": "https://github.com/atorber/dsh-hitrading/issues"
   },
-  "homepage": "https://github.com/atorber/hitrading#readme",
+  "homepage": "https://github.com/atorber/dsh-hitrading#readme",
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "^0.2.2-rc.1"
   },
