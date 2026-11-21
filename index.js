@@ -729,7 +729,7 @@ export function apply(ctx) {
   // 9) 模拟仓
   ctx.tools.register(defineTool({
     name: 'hitrading_portfolio',
-    description: '模拟仓交易与持仓（纯本地记账，不接券商、不下真实订单）：买入/卖出按实时现价成交（可指定价格），带现金账户（初始 100 万）与成交流水；查看实时市值、累计盈亏与当日盈亏（较昨收）。',
+    description: '模拟仓交易与持仓（纯本地记账，不接券商、不下真实订单）：买入/卖出按实时现价成交（可指定价格），带现金账户（初始 171 万）与成交流水；查看实时市值、累计盈亏与当日盈亏（较昨收）。',
     parameters: {
       action: { type: 'string', required: true, enum: ['buy', 'sell', 'list', 'trades', 'reset'], description: 'buy 买入 / sell 卖出 / list 查看持仓 / trades 成交流水 / reset 重置模拟仓' },
       symbol: { type: 'string', description: '6 位 A股代码（buy/sell 必填）' },
