@@ -22,7 +22,7 @@
 | 快讯 | A股 7×24 快讯：监管/宏观/行情分类标记、监管动态提醒卡、只看自选 |
 | 公告 | 个股公告：类型分类（业绩/激励/并购/增减持/分红/融资/治理）、按代码查询、一键加自选 |
 | 微博 | 微博监控：博主筛选、互动数、已提取标记、**提取股票**（模型解析写入自选） |
-| 持仓 | 建仓/清仓表单 + 实时市值、累计盈亏与**当日盈亏**（较昨收） |
+| 模拟仓 | 带 100 万现金账户的模拟交易：买入/卖出按实时现价成交（可指定价格）+ **当日盈亏**（较昨收）/累计盈亏 + 成交流水 |
 | 选股 | 排序字段 + 区间过滤（市盈率/市值/涨跌幅/换手）+ 结果表 |
 | 回测 | 策略选择 + 参数 + **权益曲线图** + 收益/回撤/夏普/胜率 |
 | 预警 | 价格/涨跌幅规则增删 + 触发状态 |
@@ -42,7 +42,7 @@
 | `hitrading_powerful` | 强势股：按交易日查当日涨幅>7%（涨停/连板/行业，东财） |
 | `hitrading_limitup` | 涨停板：按连板梯队（首板/二板/三板…）查当日涨停股（封单/炸板/封板时间/行业，东财涨停看板） |
 | `hitrading_watchlist` | 自选股管理（持久化）+ 关注度分级 + 领域分类（大金融/消费/周期/科技）+ 多标签 |
-| `hitrading_portfolio` | 本地持仓与盈亏（含当日盈亏，持久化） |
+| `hitrading_portfolio` | 模拟仓买卖与持仓（本地记账、不接券商）：现金账户 + 成交流水 + 当日盈亏/累计盈亏 |
 | `hitrading_weibo` | 微博监控（本地 Weibo Crawler）+ **提取股票**（模型解析写入自选） |
 | `hitrading_news` | 快讯 / 个股公告 / 龙虎榜（东方财富） |
 | `hitrading_backtest` | 内置策略回测（双均线/MACD/RSI） |
@@ -50,7 +50,7 @@
 
 ## 数据持久化
 
-自选股 / 持仓 / 预警规则存在 **SQLite**（`node:sqlite` 内置，WAL 模式），文件：
+自选股 / 模拟仓 / 预警规则存在 **SQLite**（`node:sqlite` 内置，WAL 模式），文件：
 
 ```
 ~/.dsh/storages/hitrading.db
@@ -62,7 +62,7 @@
 
 - **旧数据自动迁移**：早期版本存在同目录的 `hitrading.json`，首次启动时会自动导入当前库（不覆盖已有记录），导入后把旧文件改名为 `hitrading.json.migrated`。
 - **每小时自动快照**：`hitrading.db.bak`（`VACUUM INTO` 生成的一致性副本，含 WAL 中未 checkpoint 的写入）。误删可把 `.bak` 复制回 `.db` 恢复。
-- 面板里的「移除自选 / 清仓 / 删除预警」均有二次确认。
+- 面板里的「移除自选 / 重置模拟仓 / 删除预警」均有二次确认。
 
 ## 外部程序通过 HTTP 访问（量化脚本）
 
@@ -80,7 +80,7 @@
 - `GET /api?op=<op>&...`
 - `POST /api`，body `{ "op": "<op>", "args": {...} }`
 
-`op` 与 Agent 工具同名：`quote` / `kline` / `analysis` / `screen` / `market_energy` / `powerful` / `limitup` / `watchlist.list|add|remove` / `portfolio.list|add|remove` / `news` / `backtest` / `alerts.list|create|delete` / `weibo`（列表）。
+`op` 与 Agent 工具同名：`quote` / `kline` / `analysis` / `screen` / `market_energy` / `powerful` / `limitup` / `watchlist.list|add|remove` / `portfolio.buy|sell|list|trades|reset` / `news` / `backtest` / `alerts.list|create|delete` / `weibo`（列表）。
 
 ```python
 import requests

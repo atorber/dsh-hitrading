@@ -234,22 +234,33 @@ curl -s -X POST http://127.0.0.1:8099/api -H "Content-Type: application/json" \
 
 `list` 返回 `items[]`：`symbol name price pctChange tier tags addedAt pctN`，另含 `counts`（各关注度数量）与 `tagCloud`（各标签数量）。`pctN` 为 `{1,2,3,4,5,10,15,20,30}` 各周期的累计涨跌幅：T-n = 最新价较 T-(n+1) 日收盘（近 n+1 个交易日，如 T-1 为近 2 日累计）。旧数据无 `tier`/`tags` 时视为 `basic`/空。
 
-### 持仓
+### 模拟仓（买卖 / 持仓 / 流水）
+
+纯本地记账的模拟交易，**不接券商、不下真实订单**。带现金账户（初始 100 万 + 已有持仓按成本价折算为初始投入）。买入/卖出默认按实时现价成交，可指定价格（限价模拟）。
 
 ```bash
-# 查询（含实时市值/累计盈亏/当日盈亏，含 totalPnl / totalValue / totalDayPnl）
+# 查询持仓（含现金、总资产、当日盈亏与累计盈亏）
 curl -s "http://127.0.0.1:8099/api?op=portfolio.list"
 
-# 建仓
+# 买入（价格留空 = 实时现价；可指定限价）
 curl -s -X POST http://127.0.0.1:8099/api -H "Content-Type: application/json" \
-  -d '{"op":"portfolio.add","args":{"symbol":"000001","shares":100,"costPrice":11.5}}'
+  -d '{"op":"portfolio.buy","args":{"symbol":"600519","shares":100}}'
+curl -s -X POST http://127.0.0.1:8099/api -H "Content-Type: application/json" \
+  -d '{"op":"portfolio.buy","args":{"symbol":"600519","shares":100,"price":1400}}'
 
-# 清仓
+# 卖出（校验持仓，超卖报错；卖完自动移除）
 curl -s -X POST http://127.0.0.1:8099/api -H "Content-Type: application/json" \
-  -d '{"op":"portfolio.remove","args":{"symbol":"000001"}}'
+  -d '{"op":"portfolio.sell","args":{"symbol":"600519","shares":50}}'
+
+# 成交流水（时间倒序，count 默认 50，上限 200）
+curl -s "http://127.0.0.1:8099/api?op=portfolio.trades&count=20"
+
+# 重置模拟仓（清空持仓/流水，现金回到初始资金；keepPositions=true 保留持仓）
+curl -s -X POST http://127.0.0.1:8099/api -H "Content-Type: application/json" \
+  -d '{"op":"portfolio.reset","args":{}}'
 ```
 
-`list` 返回 `items[]`：`symbol name shares costPrice price pctChange marketValue pnl pnlPct dayPnl`，另含 `totalPnl`、`totalValue`、`totalDayPnl`。`dayPnl` =（现价 − 昨收）× 股数，为**当日盈亏**；`pnl` =（现价 − 成本价）× 股数，为**累计盈亏**。`totalDayPnl` 为全部持仓当日盈亏合计。
+`list` 返回 `items[]`：`symbol name shares costPrice price pctChange marketValue pnl pnlPct dayPnl`，另含 `cash`（可用现金）、`initialCash`、`totalAssets`（现金+持仓市值）、`totalPnl`、`totalValue`、`totalDayPnl`。`dayPnl` =（现价 − 昨收）× 股数，为**当日盈亏**；`pnl` =（现价 − 成本价）× 股数，为**累计盈亏**。`buy`/`sell` 回执含 `side symbol name price shares amount cash position`；买入按加权平均更新成本价。`trades` 返回 `items[]`（`id time side symbol name price shares amount`）。
 
 ### 预警
 
@@ -310,9 +321,12 @@ class HiTrading:
     def watch_remove(self, *symbols):return self._post("watchlist.remove", symbols=list(symbols))
 
     def portfolio(self):             return self._get("portfolio.list")
-    def position_add(self, symbol, shares, cost_price):
-        return self._post("portfolio.add", symbol=symbol, shares=shares, costPrice=cost_price)
-    def position_remove(self, symbol): return self._post("portfolio.remove", symbol=symbol)
+    def buy(self, symbol, shares, price=None):
+        return self._post("portfolio.buy", symbol=symbol, shares=shares, price=price)
+    def sell(self, symbol, shares, price=None):
+        return self._post("portfolio.sell", symbol=symbol, shares=shares, price=price)
+    def trades(self, count=50):      return self._get("portfolio.trades", count=count)["items"]
+    def reset_portfolio(self):       return self._post("portfolio.reset")
 
     def alerts(self):                return self._get("alerts.list")["items"]
     def alert_add(self, symbol, condition, value):
@@ -334,8 +348,8 @@ ht.watch_add("600519")
 **找符合条件的股票**
 1. `screen` 用 `sort` + 区间过滤 → 2. 对命中前列的股票用 `quote`/`analysis` 复核 → 3. 输出表格并注明筛选条件。
 
-**跟踪自己的持仓**
-1. `portfolio.list` 取市值、累计盈亏与当日盈亏 → 2. 结合 `news`（公告/龙虎榜）补充事件 → 3. 区分「数据事实」与「你的判断」。
+**跟踪模拟仓持仓**
+1. `portfolio.list` 取市值、当日盈亏与累计盈亏 → 2. 结合 `news`（公告/龙虎榜）补充事件 → 3. 区分「数据事实」与「你的判断」。
 
 **验证一个策略想法**
 1. `backtest` 选 `ma_cross`/`macd_cross`/`rsi_reversal` → 2. 对比 `totalReturnPct`/`maxDrawdownPct`/`sharpe` → 3. 明确说明是历史回测，未来不可预知。
@@ -344,6 +358,6 @@ ht.watch_add("600519")
 
 - **只做分析，不做交易**：本服务不连接券商，无下单能力。
 - 数据是公开免费源的聚合结果，**不保证实时与准确**；任何结论都要标注来源与时间。
-- 写操作（`watchlist.add`/`portfolio.add`/`alerts.create` 等）会立即改变本机共享数据，**会影响 HiTrading 面板与 Harness 内 Agent 看到的内容**，执行前确认用户意图。
+- 写操作（`watchlist.add`/`portfolio.buy`/`portfolio.sell`/`alerts.create` 等）会立即改变本机共享数据，**会影响 HiTrading 面板与 Harness 内 Agent 看到的内容**，执行前确认用户意图。
 - 服务未启动时先启动它；若开启 `HITRADING_TOKEN`，所有请求都要带 Bearer token。
 - 所有输出需附「仅供研究参考，不构成投资建议」。

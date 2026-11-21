@@ -214,15 +214,40 @@ function renderWatchlist(v) {
   return body + cloud + '\n最新涨跌幅%：最新价相对上一交易日收盘（当日涨跌）。\nT-n%：最新价相对 T-(n+1) 日收盘的累计涨跌幅（如 T-1 为近 2 个交易日累计，T-10 为近 11 个交易日累计）。';
 }
 
+function renderTradeFill(v) {
+  const dir = v.side === 'buy' ? '买入' : '卖出';
+  const lines = [
+    `## 模拟仓${dir}成交：${v.symbol} ${v.name}`,
+    `成交价 ${v.price} × ${v.shares} 股 = ${v.amount} 元；可用现金 ${v.cash}。`,
+    v.position ? `当前持仓：${v.position.shares} 股，加权成本 ${v.position.costPrice}。` : '该股已清仓。',
+    '\n模拟仓为本地记账，不接券商、不构成交易建议。',
+  ];
+  return lines.filter(Boolean).join('\n');
+}
+
 function renderPortfolio(v) {
-  return renderList(v, '持仓', [
+  const head = v.cash != null
+    ? `模拟仓 · 可用现金 ${v.cash}，总资产 ${v.totalAssets ?? '-'}（现金+持仓市值 ${v.totalValue}），初始资金 ${v.initialCash ?? '-'}。\n`
+    : '';
+  const body = renderList(v, '模拟持仓', [
     { label: '代码', render: (r) => r.symbol }, { label: '名称', render: (r) => r.name },
     { label: '持股', render: (r) => r.shares }, { label: '成本价', render: (r) => r.costPrice },
     { label: '现价', render: (r) => r.price }, { label: '最新涨跌幅', render: (r) => (r.pctChange == null ? '-' : `${r.pctChange >= 0 ? '+' : ''}${r.pctChange}%`) },
     { label: '当日盈亏', render: (r) => (r.dayPnl == null ? '-' : `${r.dayPnl >= 0 ? '+' : ''}${r.dayPnl}`) },
     { label: '市值', render: (r) => r.marketValue },
     { label: '累计盈亏', render: (r) => r.pnl }, { label: '累计盈亏%', render: (r) => r.pnlPct },
-  ], '持仓为空。');
+  ], '模拟仓为空。可先 buy 买入建仓。');
+  return head + body;
+}
+
+function renderTrades(v) {
+  return renderList(v, '成交流水', [
+    { label: '时间', render: (r) => (r.time ? r.time.slice(0, 19).replace('T', ' ') : '-') },
+    { label: '方向', render: (r) => (r.side === 'buy' ? '买入' : '卖出') },
+    { label: '代码', render: (r) => r.symbol }, { label: '名称', render: (r) => r.name },
+    { label: '价格', render: (r) => r.price }, { label: '股数', render: (r) => r.shares },
+    { label: '金额', render: (r) => r.amount },
+  ], '暂无成交记录。');
 }
 
 function renderAlerts(v) {
@@ -273,6 +298,8 @@ export function apply(ctx) {
     alerts: store.table('alerts'),
     powerful: store.table('powerful'),   // 强势股按日缓存
     weibo: store.table('weibo'),         // 微博股票提取标记
+    cash: store.table('cash'),           // 模拟仓现金账户（单行 key='account'）
+    trades: store.table('trades'),       // 模拟仓成交流水
   };
 
   // 微博「提取股票」：用会话默认模型解析微博正文里的 A股标的
@@ -699,19 +726,26 @@ export function apply(ctx) {
     presentCall: (a) => ({ card: 'generic', title: '微博监控', rawInput: a }),
   }));
 
-  // 9) 持仓
+  // 9) 模拟仓
   ctx.tools.register(defineTool({
     name: 'hitrading_portfolio',
-    description: '管理本地持仓：记录持股数与成本价，查看实时市值、累计盈亏与当日盈亏（较昨收）。数据持久化在本机，不连接券商。',
+    description: '模拟仓交易与持仓（纯本地记账，不接券商、不下真实订单）：买入/卖出按实时现价成交（可指定价格），带现金账户（初始 100 万）与成交流水；查看实时市值、累计盈亏与当日盈亏（较昨收）。',
     parameters: {
-      action: { type: 'string', required: true, enum: ['add', 'remove', 'list'], description: 'add 建仓 / remove 清仓 / list 查看' },
-      symbol: { type: 'string', description: '6 位 A股代码（add/remove 时必填）' },
-      shares: { type: 'integer', description: '持股数量（股，add 时必填）' },
-      costPrice: { type: 'number', description: '成本价（元，add 时必填）' },
+      action: { type: 'string', required: true, enum: ['buy', 'sell', 'list', 'trades', 'reset'], description: 'buy 买入 / sell 卖出 / list 查看持仓 / trades 成交流水 / reset 重置模拟仓' },
+      symbol: { type: 'string', description: '6 位 A股代码（buy/sell 必填）' },
+      shares: { type: 'integer', description: '股数（buy/sell 必填，正整数）' },
+      price: { type: 'number', description: '成交价（可选，默认按实时现价成交）' },
+      keepPositions: { type: 'boolean', description: 'reset 时是否保留现有持仓（默认 false 清空）' },
     },
-    output: { schema: { type: 'json' }, render: (_a, v) => [{ type: 'text', text: renderPortfolio(v) }] },
-    execute: ({ action, symbol, shares, costPrice }) => runOp(`portfolio.${action}`, { symbol, shares, costPrice }, tables),
-    presentCall: (a) => ({ card: 'generic', title: '持仓管理', rawInput: a }),
+    output: {
+      schema: { type: 'json' },
+      render: (_a, v) => [{
+        type: 'text',
+        text: v.side ? renderTradeFill(v) : (Array.isArray(v.items) && v.items[0]?.side ? renderTrades(v) : renderPortfolio(v)),
+      }],
+    },
+    execute: ({ action, symbol, shares, price, keepPositions }) => runOp(`portfolio.${action}`, { symbol, shares, price, keepPositions }, tables),
+    presentCall: (a) => ({ card: 'generic', title: '模拟仓', rawInput: a }),
   }));
 
   // 10) 资讯

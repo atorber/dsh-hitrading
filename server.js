@@ -22,6 +22,8 @@ const tables = {
   alerts: store.table('alerts'),
   powerful: store.table('powerful'),
   weibo: store.table('weibo'),
+  cash: store.table('cash'),     // 模拟仓现金账户
+  trades: store.table('trades'), // 模拟仓成交流水
 };
 
 const json = (res, status, payload) => {

@@ -84,7 +84,7 @@ dsh-hitrading/                  # 单个 bundle 包 @atorber/hitrading（GitHub:
 | `hitrading_powerful` | `date?` | 指定交易日涨幅>7%的股票 + 涨停连板 | C6 |
 | `hitrading_limitup` | `date?` | 指定交易日涨停股，按连板梯队分组 | C6 |
 | `hitrading_watchlist` | `action`(add/remove/list) + `symbols` | 自选列表 + 实时行情 | C4 |
-| `hitrading_portfolio` | `action`(add/remove/list) + `{symbol,shares,cost}` | 持仓 + 现价 + 累计盈亏/当日盈亏 | C4 |
+| `hitrading_portfolio` | `action`(buy/sell/list/trades/reset) + `{symbol,shares,price}` | 模拟仓买卖 + 现金账户 + 成交流水 + 当日盈亏/累计盈亏 | C4 |
 | `hitrading_news` | `symbol?`, `type`(news/announcement/lhb/north) | 资讯/公告/龙虎榜/北向资金列表 | C6 |
 | `hitrading_backtest` | `symbol`, `strategy`(名称+参数), `period`, `initial` | 收益/回撤/夏普/交易明细/权益曲线 | C5 |
 | `hitrading_alert` | `action`(create/list/delete) + 规则`{symbol,condition,value}` | 预警规则列表 | C7 |
@@ -95,7 +95,7 @@ dsh-hitrading/                  # 单个 bundle 包 @atorber/hitrading（GitHub:
 
 ### 6.1 最终方案：SQLite（跨进程共享）
 
-自选股 / 持仓 / 预警规则存 **SQLite**（Node ≥ 22 内置 `node:sqlite`，WAL 模式），文件：
+自选股 / 模拟仓 / 预警规则存 **SQLite**（Node ≥ 22 内置 `node:sqlite`，WAL 模式），文件：
 
 ```
 ~/.dsh/storages/hitrading.db
@@ -122,7 +122,7 @@ dsh-hitrading/                  # 单个 bundle 包 @atorber/hitrading（GitHub:
 
 ## 7. UI 面板
 
-- **面板入口**：`sidebar.panellist` 注册 HiTrading 图标，打开后展示「自选股行情 / 持仓盈亏 / 预警列表」三个视图（共享 host 主题 token）。
+- **面板入口**：`sidebar.panellist` 注册 HiTrading 图标，打开后展示「自选股行情 / 模拟仓 / 预警列表」等视图（共享 host 主题 token）。
 - **工具结果可视化**：`tool.call.toolview` 按 wire name 注册 — `hitrading_kline` 渲染 K线图（自绘 SVG/Canvas），`hitrading_quote`/`screen`/`news` 渲染数据表，`hitrading_backtest` 渲染权益曲线。
 - **设置页**：`settings.section` — 数据源偏好、可选 Tushare token 绑定、缓存设置。
 - **预警提醒**：`timer` 轮询 + 阈值判断，触达在 GUI 内提示（具体通知挂载点在实现阶段用 `Slots.listSubTree` 确定，优先 `shell.overlay` 或面板内高亮）。
@@ -153,5 +153,5 @@ dsh-hitrading/                  # 单个 bundle 包 @atorber/hitrading（GitHub:
 - 全部 13 个工具 + 持久化 domain + 预警定时器 + sidebar 面板已实现并端到端验证；数据源为腾讯/新浪行情 + 新浪K线/列表 + 东财 push2/push2his/push2ex（量能、强势股、涨停板、龙虎榜/公告/快讯）。强势股按日缓存进 SQLite（powerful 表）：历史日首次访问扫描全市场日K（约 20 秒）后落盘，之后秒出。
 - **本地 bundle 的 @deepseek-ai 依赖解析**：Host 侧 import 了 `dsh-tools`（工具定义）。registry 只有旧版（0.0.1-rc.1），与运行时（0.2.2-rc.1）不一致，不可写成 npm 依赖；本地 `link:` 安装下 ESM 从插件真实路径解析，需在插件目录建指向 DSH 安装树的 `node_modules/@deepseek-ai` 软链（详见 README「本地开发注意」）。
 - **预警触达**：一期为「面板/工具列表可见触发状态」——`ctx.timer` 轮询（交易时段）检测规则，触发后写 `triggered` + `lastTriggeredAt` 到 domain；`hitrading_alert list` 与面板可见「已触发」。弹窗式提醒与实时面板数据需 Host→Client 数据通道（`useResource`/Remote），列为后续增强。
-- **面板定位**：client 侧注册 `sidebar.panellist`（图标）+ `main`（key=`hitrading` 页面，keyed slot），经 `Slots.listSubTree` 验证 `hitrading` occupant 已激活。**已从「说明导航页」升级为 15-Tab 交互控制台**（自选/量能/强势股/涨停板/龙虎榜/快讯/公告/微博/持仓/选股/回测/预警/Agent 技能/API/使用说明）：Host 把 13 个操作抽成单一真相源 `lib/ops.js`，并经 `ctx.connection.fetch.register` 暴露鉴权路由 `/api/hitrading`（GET/POST，JSON）；client 端各视图通过同源 `fetch('/api/hitrading')` 实时读写，含 K线图（SVG）、权益曲线图、表单与增删交互。
+- **面板定位**：client 侧注册 `sidebar.panellist`（图标）+ `main`（key=`hitrading` 页面，keyed slot），经 `Slots.listSubTree` 验证 `hitrading` occupant 已激活。**已从「说明导航页」升级为 15-Tab 交互控制台**（自选/量能/强势股/涨停板/龙虎榜/快讯/公告/微博/模拟仓/选股/回测/预警/Agent 技能/API/使用说明）：Host 把 13 个操作抽成单一真相源 `lib/ops.js`，并经 `ctx.connection.fetch.register` 暴露鉴权路由 `/api/hitrading`（GET/POST，JSON）；client 端各视图通过同源 `fetch('/api/hitrading')` 实时读写，含 K线图（SVG）、权益曲线图、表单与增删交互。
 - **跨进程共享与外部接入**：持久化由 storage-domain 改为 **SQLite（`node:sqlite`，WAL）** `~/.dsh/storages/hitrading.db`，插件/面板/独立服务三方共享；独立服务 `server.js` 暴露同一套 op 的 HTTP API（默认 `127.0.0.1:8099`）。其他 Agent 通过 `skills/hitrading/SKILL.md`（`install-skill.sh` 可一键装到 `~/.agents/skills`、`~/.claude/skills`、`~/.cursor/skills`；或 `GET /skill.md` 拉取）接入；`hitrading` skill 已在本机三个目录安装成功。

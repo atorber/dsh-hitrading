@@ -42,7 +42,7 @@ export default defineConfig({
             { label: '强势股', slug: 'guide/powerful' },
             { label: '涨停板', slug: 'guide/limitup' },
             { label: '选股', slug: 'guide/screen' },
-            { label: '持仓与回测', slug: 'guide/portfolio-backtest' },
+            { label: '模拟仓与回测', slug: 'guide/portfolio-backtest' },
             { label: '资讯与预警', slug: 'guide/news-alerts' },
           ],
         },

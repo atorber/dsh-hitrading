@@ -1646,25 +1646,36 @@ window.__ModuleLoader__.load({
                 ' 涨停板仅供短线情绪观察，不构成投资建议。'))));
     }
 
-    // ---------- 持仓 ----------
+    // ---------- 模拟仓 ----------
     function PortfolioView() {
-      const [form, setForm] = useState({ symbol: '', shares: '', costPrice: '' });
-      const [busy, setBusy] = useState(false);
+      const [form, setForm] = useState({ symbol: '', shares: '', price: '' });
+      const [busy, setBusy] = useState(null);   // null | 'buy' | 'sell' | 'reset'
       const [sort, setSort] = useState({ key: null, dir: null });
+      const [showTrades, setShowTrades] = useState(false);
+      const trades = useData(() => (showTrades ? api('portfolio.trades') : Promise.resolve(null)), [showTrades]);
       const data = useData(() => api('portfolio.list'), [], { refreshMs: 15000 });
       const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-      const add = async () => {
-        setBusy(true);
+      const trade = async (side) => {
+        const code = form.symbol.trim();
+        if (!/^\d{6}$/.test(code)) { notifyError('请输入 6 位股票代码'); return; }
+        const shares = Math.floor(Number(form.shares));
+        if (!shares || shares <= 0) { notifyError('请输入有效股数'); return; }
+        const price = form.price.trim() === '' ? undefined : Number(form.price);
+        if (price != null && (!price || price <= 0)) { notifyError('成交价需为正数（留空按实时现价成交）'); return; }
+        setBusy(side);
         try {
-          await api('portfolio.add', { symbol: form.symbol.trim(), shares: Number(form.shares), costPrice: Number(form.costPrice) });
-          setForm({ symbol: '', shares: '', costPrice: '' });
+          const r = await api(`portfolio.${side}`, { symbol: code, shares, price });
+          setForm({ symbol: '', shares: '', price: '' });
           data.reload();
-          notifyOk('已建仓');
-        } catch (e) { notifyError(e.message); } finally { setBusy(false); }
+          if (showTrades) trades.reload();
+          notifyOk(`${side === 'buy' ? '买入' : '卖出'}成交：${r.name || code} ${r.price}×${shares}，可用现金 ${fmt(r.cash)}`);
+        } catch (e) { notifyError(e.message); } finally { setBusy(null); }
       };
-      const remove = async (code) => {
-        if (!window.confirm(`确定清仓 ${code}？此操作会删除该持仓记录。`)) return;
-        try { await api('portfolio.remove', { symbol: code }); data.reload(); notifyOk(`已清仓 ${code}`); } catch (e) { notifyError(e.message); }
+      const resetSim = async () => {
+        if (!window.confirm('确定重置模拟仓？将清空全部持仓与成交流水，现金回到初始资金。')) return;
+        setBusy('reset');
+        try { await api('portfolio.reset', {}); data.reload(); trades.reload(); notifyOk('模拟仓已重置'); }
+        catch (e) { notifyError(e.message); } finally { setBusy(null); }
       };
       const columns = [
         { label: '代码', render: (r) => h('span', { style: { fontWeight: 600 } }, r.symbol) },
@@ -1676,11 +1687,13 @@ window.__ModuleLoader__.load({
         { label: '当日盈亏', headerTitle: '相对昨收的当日持仓浮动盈亏 =（现价 − 昨收）× 股数', render: (r) => (r.dayPnl == null ? '-' : `${r.dayPnl >= 0 ? '+' : ''}${fmt(r.dayPnl)}`), className: (r) => (r.dayPnl == null ? '' : r.dayPnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right', sortable: true, sortValue: (r) => (r.dayPnl ?? null) },
         { label: '市值', key: 'marketValue', align: 'right' },
         { label: '盈亏', headerTitle: '持仓累计盈亏 =（现价 − 成本价）× 股数', render: (r) => `${fmt(r.pnl)} (${fmt(r.pnlPct)}%)`, className: (r) => (r.pnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right' },
-        { label: '', render: (r) => h('button', { className: 'htx-btn htx-btnSm htx-btnDanger', onClick: () => remove(r.symbol) }, '清仓') },
+        { label: '', render: (r) => h('button', { className: 'htx-btn htx-btnSm htx-btnDanger', onClick: () => { setForm({ symbol: r.symbol, shares: String(r.shares), price: '' }); } }, '卖出') },
       ];
       const items = data.value?.items || [];
       const tp = data.value?.totalPnl;
       const tdp = data.value?.totalDayPnl;
+      const cashV = data.value?.cash;
+      const assets = data.value?.totalAssets;
       // 排序三态：desc → asc → 取消（与自选页一致，null 沉底）
       const onSortChange = (key) => setSort((s) => (
         s.key !== key ? { key, dir: 'desc' } : s.dir === 'desc' ? { key, dir: 'asc' } : { key: null, dir: null }
@@ -1695,27 +1708,51 @@ window.__ModuleLoader__.load({
             return sort.dir === 'asc' ? va - vb : vb - va;
           })
         : items;
+      const tradeBtn = (side, label) => h('button', {
+        className: 'htx-btn htx-btnSm ' + (side === 'buy' ? 'htx-btnPrimary' : 'htx-btnDanger'),
+        disabled: busy != null, onClick: () => trade(side),
+      }, busy === side ? '委托中…' : label);
       return h('div', null,
         h('div', { className: 'htx-toolbar' },
           h(Field, { label: '代码' }, h('input', { className: 'htx-input', style: { width: 110 }, placeholder: '600519', value: form.symbol, onChange: set('symbol') })),
           h(Field, { label: '股数' }, h('input', { className: 'htx-input', style: { width: 90 }, placeholder: '100', value: form.shares, onChange: set('shares') })),
-          h(Field, { label: '成本价' }, h('input', { className: 'htx-input', style: { width: 90 }, placeholder: '1400', value: form.costPrice, onChange: set('costPrice') })),
-          h('button', { className: 'htx-btn htx-btnPrimary', disabled: busy, onClick: add }, busy ? '保存中…' : '建仓'),
+          h(Field, { label: '成交价' }, h('input', { className: 'htx-input', style: { width: 100 }, placeholder: '现价', title: '留空按实时现价成交，可输入指定价格（限价模拟）', value: form.price, onChange: set('price') })),
+          tradeBtn('buy', '买入'),
+          tradeBtn('sell', '卖出'),
           h('span', { className: 'htx-meta' },
-            `持仓 ${items.length} 只`,
+            `模拟仓 ${items.length} 只`,
+            cashV != null ? ` · 可用现金 ${fmt(cashV)}` : '',
             data.updatedAt ? ` · ${new Date(data.updatedAt).toLocaleTimeString('zh-CN', { hour12: false })}` : '',
             data.error ? h('span', { className: 'htx-metaWarn', title: `刷新失败：${data.error}` }, ' · 刷新失败') : null),
           h(RefreshBtn, { busy: data.refreshing, onClick: () => data.reload() })),
+        h('div', { className: 'htx-toolbar', style: { paddingTop: 0 } },
+          h('button', { className: 'htx-btn htx-btnSm', 'aria-pressed': showTrades, onClick: () => setShowTrades((v) => !v) }, showTrades ? '隐藏流水' : '成交流水'),
+          h('button', { className: 'htx-btn htx-btnSm htx-btnDanger', disabled: busy != null, onClick: resetSim }, busy === 'reset' ? '重置中…' : '重置模拟仓'),
+          h('span', { className: 'htx-meta' }, '模拟盘仅本地记账：买卖按实时现价成交（可指定价格），不接券商、不构成投资建议')),
         items.length ? h('div', { className: 'htx-metrics' },
-          h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '总市值'), h('p', { className: 'htx-metricValue' }, fmt(data.value.totalValue))),
+          h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '总资产'), h('p', { className: 'htx-metricValue' }, fmt(assets))),
+          h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '可用现金'), h('p', { className: 'htx-metricValue' }, fmt(cashV))),
           h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '当日盈亏', h('span', { style: { fontWeight: 400, opacity: .65, marginLeft: 4 } }, '（较昨收）')), h('p', { className: 'htx-metricValue ' + (tdp >= 0 ? 'htx-up' : 'htx-down') }, tdp == null ? '-' : `${tdp >= 0 ? '+' : ''}${fmt(tdp)}`)),
           h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '总盈亏', h('span', { style: { fontWeight: 400, opacity: .65, marginLeft: 4 } }, '（持仓累计）')), h('p', { className: 'htx-metricValue ' + (tp >= 0 ? 'htx-up' : 'htx-down') }, fmt(tp))),
           h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '持仓数'), h('p', { className: 'htx-metricValue' }, String(items.length)))) : null,
         // 数据优先：已有数据就一直显示表格，静默刷新只换数据
         data.value == null
           ? (data.error ? h(ErrorBox, { error: data.error }) : h(Spinner))
-          : !items.length ? h(Empty, { text: '持仓为空', hint: '在上方输入代码、股数与成本价即可建仓' })
-          : h(DataTable, { columns, rows: displayRows, getKey: (r) => r.symbol, sort, onSortChange }));
+          : !items.length ? h(Empty, { text: '模拟仓为空', hint: '在上方输入代码与股数，点击「买入」即可建仓（成交价留空按实时现价）' })
+          : h(DataTable, { columns, rows: displayRows, getKey: (r) => r.symbol, sort, onSortChange }),
+        showTrades && trades.value ? h('div', { style: { marginTop: 12 } },
+          h('p', { className: 'htx-metricLabel', style: { marginBottom: 6 } }, '成交流水（最近在前）'),
+          trades.value.items?.length
+            ? h('table', { className: 'htx-table' },
+                h('thead', null, h('tr', null, ['时间', '方向', '代码', '名称', '价格', '股数', '金额'].map((t) => h('th', { key: t }, t)))),
+                h('tbody', null, trades.value.items.map((t) => h('tr', { key: t.id || t.time },
+                  h('td', null, (t.time || '').slice(5, 16).replace('T', ' ')),
+                  h('td', null, h('span', { className: t.side === 'buy' ? 'htx-up' : 'htx-down', style: { fontWeight: 600 } }, t.side === 'buy' ? '买入' : '卖出')),
+                  h('td', null, t.symbol), h('td', null, t.name),
+                  h('td', { className: 'htx-num' }, fmt(t.price)),
+                  h('td', { className: 'htx-num' }, fmt(t.shares)),
+                  h('td', { className: 'htx-num' }, fmt(t.amount))))))
+            : h('p', { className: 'htx-meta' }, '暂无成交记录')) : null);
     }
 
     // ---------- 回测 ----------
@@ -2676,48 +2713,69 @@ POST /api
 { "ok": true, "value": { "items": [ { "symbol":"600519", "name":"贵州茅台", "tier":"trading", "tags":["白酒"] } ], "added": [...], "existed": [...] } }`,
       },
       {
-        op: 'portfolio.list / add / remove', title: '持仓 查 / 建仓 / 清仓',
+        op: 'portfolio.buy / sell / list / trades / reset', title: '模拟仓 买卖 / 查持仓 / 流水 / 重置',
         params: [
-          ['op', 'string', '是', 'portfolio.list / portfolio.add / portfolio.remove'],
-          ['symbol', 'string', 'add/remove 是', '6 位 A股代码'],
-          ['shares', 'number', 'add 是', '持股数量（股）'],
-          ['costPrice', 'number', 'add 是', '成本价（元）'],
+          ['op', 'string', '是', 'portfolio.buy / sell / list / trades / reset'],
+          ['symbol', 'string', 'buy/sell 是', '6 位 A股代码'],
+          ['shares', 'number', 'buy/sell 是', '成交股数（正整数）'],
+          ['price', 'number', '否', '成交价（元）；留空按实时现价成交'],
+          ['count', 'number', '否', 'trades 返回条数（默认 50，上限 200）'],
+          ['keepPositions', 'boolean', '否', 'reset 时是否保留现有持仓（默认 false 清空）'],
         ],
-        req: `# 查询（含实时市值/累计盈亏/当日盈亏）
+        req: `# 查询持仓（含现金账户、实时市值、当日盈亏与累计盈亏）
 GET /api?op=portfolio.list
 
-# 建仓
+# 买入（成交价留空 = 实时现价）
 POST /api
-{"op":"portfolio.add","args":{"symbol":"000001","shares":100,"costPrice":11.5}}
+{"op":"portfolio.buy","args":{"symbol":"600519","shares":100}}
+{"op":"portfolio.buy","args":{"symbol":"600519","shares":100,"price":1400}}
 
-# 清仓
+# 卖出
 POST /api
-{"op":"portfolio.remove","args":{"symbol":"000001"}}`,
-        res: `// portfolio.list
+{"op":"portfolio.sell","args":{"symbol":"600519","shares":50}}
+
+# 成交流水
+GET /api?op=portfolio.trades&count=20
+
+# 重置模拟仓
+POST /api
+{"op":"portfolio.reset","args":{}}`,
+        res: `// portfolio.buy / portfolio.sell 成交回执
+{
+  "ok": true,
+  "value": {
+    "side": "buy", "symbol": "600519", "name": "贵州茅台",
+    "price": 1460.21, "shares": 100, "amount": 146021,
+    "cash": 1550782,
+    "position": { "shares": 100, "costPrice": 1460.21 }
+  }
+}
+
+// portfolio.list
 {
   "ok": true,
   "value": {
     "items": [
       {
-        "symbol": "000001",
-        "name": "平安银行",
-        "shares": 100,
-        "costPrice": 11.5,
-        "price": 11.81,
-        "pctChange": 2.7,
-        "marketValue": 1181,
-        "pnl": 31,
-        "pnlPct": 2.7,
-        "dayPnl": 31
+        "symbol": "000001", "name": "平安银行", "shares": 100,
+        "costPrice": 11.5, "price": 11.81, "pctChange": 2.7,
+        "marketValue": 1181, "pnl": 31, "pnlPct": 2.7, "dayPnl": 31
       }
     ],
-    "totalPnl": 31,
-    "totalValue": 1181,
-    "totalDayPnl": 31
+    "totalPnl": 31, "totalValue": 1181, "totalDayPnl": 31,
+    "cash": 1000000, "initialCash": 1000000, "totalAssets": 1001181
   }
 }
+
+// portfolio.trades
+{ "ok": true, "value": { "items": [
+  { "id":"1763700000000-abc", "time":"2026-11-22T03:00:00.000Z", "side":"buy",
+    "symbol":"600519", "name":"贵州茅台", "price":1460.21, "shares":100, "amount":146021 }
+] } }
+
 // dayPnl =（现价 − 昨收）× 股数；totalDayPnl 为全部持仓当日盈亏合计。
-// pnl =（现价 − 成本价）× 股数，为持仓以来的累计盈亏。`,
+// pnl =（现价 − 成本价）× 股数，为持仓以来的累计盈亏。
+// 初始资金 = 100 万 + 迁移建仓部分的成本合计；totalAssets = cash + totalValue。`,
       },
       {
         op: 'alerts.list / create / delete', title: '预警 查 / 建 / 删',
@@ -2859,8 +2917,8 @@ curl -X POST http://127.0.0.1:8099/api \\
         prompts: ['把 600519 加入自选', '看看我的自选股现在什么情况'],
       },
       {
-        tool: 'hitrading_portfolio', desc: '本地持仓与盈亏（不接券商）',
-        prompts: ['记录持仓 600519 100股 成本1400', '看看我持仓的盈亏'],
+        tool: 'hitrading_portfolio', desc: '模拟仓买卖与持仓盈亏（纯本地记账，不接券商）',
+        prompts: ['模拟买入 600519 100股', '卖掉一半 603986', '看看模拟仓的当日盈亏和成交流水'],
       },
       {
         tool: 'hitrading_weibo', desc: '微博监控 + 提取股票（模型解析后写入自选）',
@@ -2969,7 +3027,7 @@ curl -X POST http://127.0.0.1:8099/api \\
         h2('在对话里用'),
         h('div', { className: 'htx-skillIntro' },
           '在对话框里直接说下面任意一句，Agent 会自动调用对应的 HiTrading 工具并返回结果。',
-          '也可以切到「自选 / 选股 / 持仓 / 回测 / 快讯 / 公告 / 微博 / 龙虎榜 / 预警」Tab 直接点选操作——两者读写的是同一份数据。'),
+          '也可以切到「自选 / 选股 / 模拟仓 / 回测 / 快讯 / 公告 / 微博 / 龙虎榜 / 预警」Tab 直接点选操作——两者读写的是同一份数据。'),
         h('div', { className: 'htx-skillGrid' }, SKILLS.map((s) => h('div', { className: 'htx-skillCard', key: s.tool },
           h('p', { className: 'htx-skillName' }, s.tool),
           h('p', { className: 'htx-skillDesc' }, s.desc),
@@ -3025,7 +3083,7 @@ curl -X POST http://127.0.0.1:8099/api \\
         ['快讯', 'A股 7×24 快讯：监管/宏观/行情分类标记、监管动态提醒、只看自选'],
         ['公告', '个股公告：类型分类（业绩/激励/并购/增减持/分红/融资/治理）、按代码查询、一键加自选'],
         ['微博', '微博监控（本地 Weibo Crawler）：博主筛选、互动数、已提取标记，支持「提取股票」写入自选'],
-        ['持仓', '记录持股与成本，实时算市值、盈亏、盈亏率'],
+        ['模拟仓', '带 100 万现金账户的模拟交易：买入/卖出按实时现价成交（可指定价格），实时算当日盈亏、累计盈亏与成交流水'],
         ['选股', '按涨跌幅/成交额/换手/市值排序，叠加市盈率、市值、涨幅、换手区间过滤'],
         ['回测', '双均线/MACD/RSI 策略回测，出权益曲线、收益、回撤、夏普、胜率'],
         ['预警', '设置价格/涨跌幅阈值，交易时段由定时器检查并标记「已触发」'],
@@ -3034,7 +3092,7 @@ curl -X POST http://127.0.0.1:8099/api \\
       ];
       return h('div', { className: 'htx-api' },
         h2('HiTrading 是什么'),
-        block(h('p', null, '一个运行在 DeepSeek Harness 内的 A股研究助手：**13 个 Agent 工具 + 一个可交互控制台**。数据存在本机 SQLite，纯分析，不连接券商、不真实下单。')),
+        block(h('p', null, '一个运行在 DeepSeek Harness 内的 A股研究助手：**13 个 Agent 工具 + 一个可交互控制台**。数据存在本机 SQLite；模拟仓只在本地记账，不连接券商、不真实下单。')),
 
         h2('三种用法'),
         block(h('p', null, h('b', null, '① 控制台：'), '点左侧栏 HiTrading 图标，用下面这些 Tab 直接点击操作。')),
@@ -3048,7 +3106,7 @@ curl -X POST http://127.0.0.1:8099/api \\
             h('td', null, h('b', null, t)), h('td', null, d))))),
 
         h2('数据与存储'),
-        block(h('p', null, '自选 / 持仓 / 预警存在 ', ic('~/.dsh/storages/hitrading.db'), '（SQLite，WAL 模式）。')),
+        block(h('p', null, '自选 / 模拟仓 / 预警存在 ', ic('~/.dsh/storages/hitrading.db'), '（SQLite，WAL 模式）。')),
         block(h('p', null, '控制台、Agent 工具、外部 HTTP 服务，', h('b', null, '读写的都是同一份'), '，任意一处修改其余两处立即可见。')),
         block(h('p', null, '行情 / K线 / 资讯不落盘：实时从公开接口拉取并做短时内存缓存，避免限流。')),
         block(h('p', null, '每小时自动快照一份到 ', ic('hitrading.db.bak'), '；误删/误改可用它恢复（把 .bak 复制回 .db 即可）。')),
@@ -3078,7 +3136,7 @@ node server.js          # 默认 http://127.0.0.1:8099
       { id: 'news', label: '快讯', group: 'work', render: () => h(NewsFlashView) },
       { id: 'announcement', label: '公告', group: 'work', render: () => h(AnnouncementView) },
       { id: 'weibo', label: '微博', group: 'work', render: () => h(WeiboView) },
-      { id: 'portfolio', label: '持仓', group: 'work', render: () => h(PortfolioView) },
+      { id: 'portfolio', label: '模拟仓', group: 'work', render: () => h(PortfolioView) },
       { id: 'screen', label: '选股', group: 'work', render: () => h(ScreenView) },
       { id: 'backtest', label: '回测', group: 'work', render: () => h(BacktestView) },
       { id: 'alerts', label: '预警', group: 'work', render: () => h(AlertsView) },
