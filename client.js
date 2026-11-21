@@ -69,6 +69,10 @@ window.__ModuleLoader__.load({
 .htx-btnOk{color:var(--dsw-alias-state-success-primary,#1a7f37);border-color:var(--dsw-alias-state-success-primary,#1a7f37)}
 .htx-btnDim{color:var(--dsw-alias-label-tertiary)}
 .htx-btnSm{height:24px;padding:0 9px;font-size:11.5px;border-radius:7px}
+.htx-rowBtns{display:inline-flex;gap:5px;white-space:nowrap}
+.htx-intent{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-interactive-bg-hover);font-size:11.5px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.htx-intentX{border:none;background:0 0;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1;cursor:pointer;padding:0 2px}
+.htx-intentX:hover{color:var(--dsw-alias-label-primary)}
 .htx-seg{display:inline-flex;border:.5px solid var(--dsw-alias-border-l3);border-radius:8px;overflow:hidden;background:var(--dsw-alias-bg-base)}
 .htx-segBtn{height:28px;padding:0 13px;border:none;background:0 0;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
 .htx-segBtn+.htx-segBtn{border-left:.5px solid var(--dsw-alias-border-l3)}
@@ -1652,9 +1656,10 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState(null);   // null | 'buy' | 'sell' | 'reset'
       const [sort, setSort] = useState({ key: null, dir: null });
       const [showTrades, setShowTrades] = useState(false);
+      const [intent, setIntent] = useState(null); // { side:'buy'|'sell', symbol, name } 行内按钮预填的意图
       const trades = useData(() => (showTrades ? api('portfolio.trades') : Promise.resolve(null)), [showTrades]);
       const data = useData(() => api('portfolio.list'), [], { refreshMs: 15000 });
-      const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+      const set = (k) => (e) => { if (k === 'symbol' && intent) setIntent(null); setForm((f) => ({ ...f, [k]: e.target.value })); };
       const trade = async (side) => {
         const code = form.symbol.trim();
         if (!/^\d{6}$/.test(code)) { notifyError('请输入 6 位股票代码'); return; }
@@ -1666,6 +1671,7 @@ window.__ModuleLoader__.load({
         try {
           const r = await api(`portfolio.${side}`, { symbol: code, shares, price });
           setForm({ symbol: '', shares: '', price: '' });
+          setIntent(null);
           data.reload();
           if (showTrades) trades.reload();
           notifyOk(`${side === 'buy' ? '买入' : '卖出'}成交：${r.name || code} ${r.price}×${shares}，可用现金 ${fmt(r.cash)}`);
@@ -1687,7 +1693,13 @@ window.__ModuleLoader__.load({
         { label: '当日盈亏', headerTitle: '相对昨收的当日持仓浮动盈亏 =（现价 − 昨收）× 股数', render: (r) => (r.dayPnl == null ? '-' : `${r.dayPnl >= 0 ? '+' : ''}${fmt(r.dayPnl)}`), className: (r) => (r.dayPnl == null ? '' : r.dayPnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right', sortable: true, sortValue: (r) => (r.dayPnl ?? null) },
         { label: '市值', key: 'marketValue', align: 'right' },
         { label: '盈亏', headerTitle: '持仓累计盈亏 =（现价 − 成本价）× 股数', render: (r) => `${fmt(r.pnl)} (${fmt(r.pnlPct)}%)`, className: (r) => (r.pnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right' },
-        { label: '', render: (r) => h('button', { className: 'htx-btn htx-btnSm htx-btnDanger', onClick: () => { setForm({ symbol: r.symbol, shares: String(r.shares), price: '' }); } }, '卖出') },
+        { label: '', render: (r) => h('span', { className: 'htx-rowBtns' },
+            h('button', {
+              className: 'htx-btn htx-btnSm htx-btnPrimary',
+              title: `给 ${r.name || r.symbol} 加仓：预填代码，输入追加股数后点「买入」（成本按加权平均更新）`,
+              onClick: () => { setForm({ symbol: r.symbol, shares: '', price: '' }); setIntent({ side: 'buy', symbol: r.symbol, name: r.name }); },
+            }, '加仓'),
+            h('button', { className: 'htx-btn htx-btnSm htx-btnDanger', title: `卖出 ${r.name || r.symbol}`, onClick: () => { setForm({ symbol: r.symbol, shares: String(r.shares), price: '' }); setIntent({ side: 'sell', symbol: r.symbol, name: r.name }); } }, '卖出')) },
       ];
       const items = data.value?.items || [];
       const tp = data.value?.totalPnl;
@@ -1719,6 +1731,9 @@ window.__ModuleLoader__.load({
           h(Field, { label: '成交价' }, h('input', { className: 'htx-input', style: { width: 100 }, placeholder: '现价', title: '留空按实时现价成交，可输入指定价格（限价模拟）', value: form.price, onChange: set('price') })),
           tradeBtn('buy', '买入'),
           tradeBtn('sell', '卖出'),
+          intent ? h('span', { className: 'htx-intent' },
+            `${intent.side === 'buy' ? '加仓' : '减仓'}：${intent.name || intent.symbol}`,
+            h('button', { className: 'htx-intentX', title: '取消预填', onClick: () => setIntent(null) }, '×')) : null,
           h('span', { className: 'htx-meta' },
             `模拟仓 ${items.length} 只`,
             cashV != null ? ` · 可用现金 ${fmt(cashV)}` : '',
