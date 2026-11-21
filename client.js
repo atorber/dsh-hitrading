@@ -1673,12 +1673,14 @@ window.__ModuleLoader__.load({
         { label: '成本价', key: 'costPrice', align: 'right' },
         { label: '现价', key: 'price', align: 'right' },
         { label: '最新涨跌幅', headerTitle: '当日涨跌幅（现价 vs 昨收）', render: (r) => (r.pctChange == null ? '-' : `${r.pctChange >= 0 ? '+' : ''}${r.pctChange}%`), className: (r) => (r.pctChange == null ? '' : r.pctChange >= 0 ? 'htx-up' : 'htx-down'), align: 'right', sortable: true, sortValue: (r) => (r.pctChange ?? null) },
+        { label: '当日盈亏', headerTitle: '相对昨收的当日持仓浮动盈亏 =（现价 − 昨收）× 股数', render: (r) => (r.dayPnl == null ? '-' : `${r.dayPnl >= 0 ? '+' : ''}${fmt(r.dayPnl)}`), className: (r) => (r.dayPnl == null ? '' : r.dayPnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right', sortable: true, sortValue: (r) => (r.dayPnl ?? null) },
         { label: '市值', key: 'marketValue', align: 'right' },
-        { label: '盈亏', render: (r) => `${fmt(r.pnl)} (${fmt(r.pnlPct)}%)`, className: (r) => (r.pnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right' },
+        { label: '盈亏', headerTitle: '持仓累计盈亏 =（现价 − 成本价）× 股数', render: (r) => `${fmt(r.pnl)} (${fmt(r.pnlPct)}%)`, className: (r) => (r.pnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right' },
         { label: '', render: (r) => h('button', { className: 'htx-btn htx-btnSm htx-btnDanger', onClick: () => remove(r.symbol) }, '清仓') },
       ];
       const items = data.value?.items || [];
       const tp = data.value?.totalPnl;
+      const tdp = data.value?.totalDayPnl;
       // 排序三态：desc → asc → 取消（与自选页一致，null 沉底）
       const onSortChange = (key) => setSort((s) => (
         s.key !== key ? { key, dir: 'desc' } : s.dir === 'desc' ? { key, dir: 'asc' } : { key: null, dir: null }
@@ -1706,7 +1708,8 @@ window.__ModuleLoader__.load({
           h(RefreshBtn, { busy: data.refreshing, onClick: () => data.reload() })),
         items.length ? h('div', { className: 'htx-metrics' },
           h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '总市值'), h('p', { className: 'htx-metricValue' }, fmt(data.value.totalValue))),
-          h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '总盈亏'), h('p', { className: 'htx-metricValue ' + (tp >= 0 ? 'htx-up' : 'htx-down') }, fmt(tp))),
+          h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '当日盈亏', h('span', { style: { fontWeight: 400, opacity: .65, marginLeft: 4 } }, '（较昨收）')), h('p', { className: 'htx-metricValue ' + (tdp >= 0 ? 'htx-up' : 'htx-down') }, tdp == null ? '-' : `${tdp >= 0 ? '+' : ''}${fmt(tdp)}`)),
+          h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '总盈亏', h('span', { style: { fontWeight: 400, opacity: .65, marginLeft: 4 } }, '（持仓累计）')), h('p', { className: 'htx-metricValue ' + (tp >= 0 ? 'htx-up' : 'htx-down') }, fmt(tp))),
           h('div', { className: 'htx-metric' }, h('p', { className: 'htx-metricLabel' }, '持仓数'), h('p', { className: 'htx-metricValue' }, String(items.length)))) : null,
         // 数据优先：已有数据就一直显示表格，静默刷新只换数据
         data.value == null
@@ -2680,7 +2683,7 @@ POST /api
           ['shares', 'number', 'add 是', '持股数量（股）'],
           ['costPrice', 'number', 'add 是', '成本价（元）'],
         ],
-        req: `# 查询（含实时市值/盈亏）
+        req: `# 查询（含实时市值/累计盈亏/当日盈亏）
 GET /api?op=portfolio.list
 
 # 建仓
@@ -2701,15 +2704,20 @@ POST /api
         "shares": 100,
         "costPrice": 11.5,
         "price": 11.81,
+        "pctChange": 2.7,
         "marketValue": 1181,
         "pnl": 31,
-        "pnlPct": 2.7
+        "pnlPct": 2.7,
+        "dayPnl": 31
       }
     ],
     "totalPnl": 31,
-    "totalValue": 1181
+    "totalValue": 1181,
+    "totalDayPnl": 31
   }
-}`,
+}
+// dayPnl =（现价 − 昨收）× 股数；totalDayPnl 为全部持仓当日盈亏合计。
+// pnl =（现价 − 成本价）× 股数，为持仓以来的累计盈亏。`,
       },
       {
         op: 'alerts.list / create / delete', title: '预警 查 / 建 / 删',

@@ -84,7 +84,7 @@ dsh-hitrading/                  # 单个 bundle 包 @atorber/hitrading（GitHub:
 | `hitrading_powerful` | `date?` | 指定交易日涨幅>7%的股票 + 涨停连板 | C6 |
 | `hitrading_limitup` | `date?` | 指定交易日涨停股，按连板梯队分组 | C6 |
 | `hitrading_watchlist` | `action`(add/remove/list) + `symbols` | 自选列表 + 实时行情 | C4 |
-| `hitrading_portfolio` | `action`(add/remove/list) + `{symbol,shares,cost}` | 持仓 + 现价 + 盈亏 | C4 |
+| `hitrading_portfolio` | `action`(add/remove/list) + `{symbol,shares,cost}` | 持仓 + 现价 + 累计盈亏/当日盈亏 | C4 |
 | `hitrading_news` | `symbol?`, `type`(news/announcement/lhb/north) | 资讯/公告/龙虎榜/北向资金列表 | C6 |
 | `hitrading_backtest` | `symbol`, `strategy`(名称+参数), `period`, `initial` | 收益/回撤/夏普/交易明细/权益曲线 | C5 |
 | `hitrading_alert` | `action`(create/list/delete) + 规则`{symbol,condition,value}` | 预警规则列表 | C7 |

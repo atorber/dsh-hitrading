@@ -219,8 +219,9 @@ function renderPortfolio(v) {
     { label: '代码', render: (r) => r.symbol }, { label: '名称', render: (r) => r.name },
     { label: '持股', render: (r) => r.shares }, { label: '成本价', render: (r) => r.costPrice },
     { label: '现价', render: (r) => r.price }, { label: '最新涨跌幅', render: (r) => (r.pctChange == null ? '-' : `${r.pctChange >= 0 ? '+' : ''}${r.pctChange}%`) },
+    { label: '当日盈亏', render: (r) => (r.dayPnl == null ? '-' : `${r.dayPnl >= 0 ? '+' : ''}${r.dayPnl}`) },
     { label: '市值', render: (r) => r.marketValue },
-    { label: '盈亏', render: (r) => r.pnl }, { label: '盈亏%', render: (r) => r.pnlPct },
+    { label: '累计盈亏', render: (r) => r.pnl }, { label: '累计盈亏%', render: (r) => r.pnlPct },
   ], '持仓为空。');
 }
 
@@ -701,7 +702,7 @@ export function apply(ctx) {
   // 9) 持仓
   ctx.tools.register(defineTool({
     name: 'hitrading_portfolio',
-    description: '管理本地持仓：记录持股数与成本价，查看实时市值与盈亏。数据持久化在本机，不连接券商。',
+    description: '管理本地持仓：记录持股数与成本价，查看实时市值、累计盈亏与当日盈亏（较昨收）。数据持久化在本机，不连接券商。',
     parameters: {
       action: { type: 'string', required: true, enum: ['add', 'remove', 'list'], description: 'add 建仓 / remove 清仓 / list 查看' },
       symbol: { type: 'string', description: '6 位 A股代码（add/remove 时必填）' },

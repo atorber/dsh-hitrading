@@ -53,7 +53,7 @@ curl -s -X POST http://127.0.0.1:8099/api \
 | `watchlist.remove` | 删自选 | `symbols` |
 | `watchlist.setTier` | 改关注度 | `symbols`、`tier` |
 | `watchlist.setTags` | 设标签（全量替换） | `symbols`、`tags` |
-| `portfolio.list` | 持仓（含市值盈亏） | — |
+| `portfolio.list` | 持仓（含市值、累计盈亏、当日盈亏） | — |
 | `portfolio.add` / `remove` | 建仓 / 清仓 | `symbol`、`shares`、`costPrice` |
 | `news` | 快讯/公告/龙虎榜 | `type`、`symbol`、`count` |
 | `weibo` | 微博列表（含提取标记） | `page`、`pageSize`、`userId`、`keyword`、`days` |

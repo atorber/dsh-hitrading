@@ -237,7 +237,7 @@ curl -s -X POST http://127.0.0.1:8099/api -H "Content-Type: application/json" \
 ### 持仓
 
 ```bash
-# 查询（含实时市值/盈亏，含 totalPnl / totalValue）
+# 查询（含实时市值/累计盈亏/当日盈亏，含 totalPnl / totalValue / totalDayPnl）
 curl -s "http://127.0.0.1:8099/api?op=portfolio.list"
 
 # 建仓
@@ -249,7 +249,7 @@ curl -s -X POST http://127.0.0.1:8099/api -H "Content-Type: application/json" \
   -d '{"op":"portfolio.remove","args":{"symbol":"000001"}}'
 ```
 
-`list` 返回 `items[]`：`symbol name shares costPrice price marketValue pnl pnlPct`。
+`list` 返回 `items[]`：`symbol name shares costPrice price pctChange marketValue pnl pnlPct dayPnl`，另含 `totalPnl`、`totalValue`、`totalDayPnl`。`dayPnl` =（现价 − 昨收）× 股数，为**当日盈亏**；`pnl` =（现价 − 成本价）× 股数，为**累计盈亏**。`totalDayPnl` 为全部持仓当日盈亏合计。
 
 ### 预警
 
@@ -335,7 +335,7 @@ ht.watch_add("600519")
 1. `screen` 用 `sort` + 区间过滤 → 2. 对命中前列的股票用 `quote`/`analysis` 复核 → 3. 输出表格并注明筛选条件。
 
 **跟踪自己的持仓**
-1. `portfolio.list` 取市值与盈亏 → 2. 结合 `news`（公告/龙虎榜）补充事件 → 3. 区分「数据事实」与「你的判断」。
+1. `portfolio.list` 取市值、累计盈亏与当日盈亏 → 2. 结合 `news`（公告/龙虎榜）补充事件 → 3. 区分「数据事实」与「你的判断」。
 
 **验证一个策略想法**
 1. `backtest` 选 `ma_cross`/`macd_cross`/`rsi_reversal` → 2. 对比 `totalReturnPct`/`maxDrawdownPct`/`sharpe` → 3. 明确说明是历史回测，未来不可预知。
