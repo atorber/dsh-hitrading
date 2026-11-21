@@ -69,6 +69,8 @@ window.__ModuleLoader__.load({
 .htx-btnOk{color:var(--dsw-alias-state-success-primary,#1a7f37);border-color:var(--dsw-alias-state-success-primary,#1a7f37)}
 .htx-btnDim{color:var(--dsw-alias-label-tertiary)}
 .htx-btnSm{height:24px;padding:0 9px;font-size:11.5px;border-radius:7px}
+.htx-btnAccent{color:var(--dsw-alias-state-business-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-business-primary) 45%,transparent)}
+.htx-btnAccent:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-business-primary) 8%,transparent);border-color:var(--dsw-alias-state-business-primary)}
 .htx-rowBtns{display:inline-flex;gap:5px;white-space:nowrap}
 .htx-intent{display:inline-flex;align-items:center;gap:6px;padding:3px 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-interactive-bg-hover);font-size:11.5px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
 .htx-intentX{border:none;background:0 0;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1;cursor:pointer;padding:0 2px}
@@ -1695,7 +1697,7 @@ window.__ModuleLoader__.load({
         { label: '盈亏', headerTitle: '持仓累计盈亏 =（现价 − 成本价）× 股数', render: (r) => `${fmt(r.pnl)} (${fmt(r.pnlPct)}%)`, className: (r) => (r.pnl >= 0 ? 'htx-up' : 'htx-down'), align: 'right' },
         { label: '', render: (r) => h('span', { className: 'htx-rowBtns' },
             h('button', {
-              className: 'htx-btn htx-btnSm htx-btnPrimary',
+              className: 'htx-btn htx-btnSm htx-btnAccent',
               title: `给 ${r.name || r.symbol} 加仓：预填代码，输入追加股数后点「买入」（成本按加权平均更新）`,
               onClick: () => { setForm({ symbol: r.symbol, shares: '', price: '' }); setIntent({ side: 'buy', symbol: r.symbol, name: r.name }); },
             }, '加仓'),
@@ -1740,7 +1742,7 @@ window.__ModuleLoader__.load({
             data.updatedAt ? ` · ${new Date(data.updatedAt).toLocaleTimeString('zh-CN', { hour12: false })}` : '',
             data.error ? h('span', { className: 'htx-metaWarn', title: `刷新失败：${data.error}` }, ' · 刷新失败') : null),
           h(RefreshBtn, { busy: data.refreshing, onClick: () => data.reload() })),
-        h('div', { className: 'htx-toolbar', style: { paddingTop: 0 } },
+        h('div', { className: 'htx-row', style: { marginTop: -6, marginBottom: 10 } },
           h('button', { className: 'htx-btn htx-btnSm', 'aria-pressed': showTrades, onClick: () => setShowTrades((v) => !v) }, showTrades ? '隐藏流水' : '成交流水'),
           h('button', { className: 'htx-btn htx-btnSm htx-btnDanger', disabled: busy != null, onClick: resetSim }, busy === 'reset' ? '重置中…' : '重置模拟仓'),
           h('span', { className: 'htx-meta' }, '模拟盘仅本地记账：买卖按实时现价成交（可指定价格），不接券商、不构成投资建议')),
