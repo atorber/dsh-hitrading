@@ -20,7 +20,13 @@ jobs:
 
       - name: 语法检查
         run: |
-          for f in index.js client.js server.js lib/*.js; do node --check "$f"; done
+          for f in index.js client.js server.js lib/*.js scripts/*.mjs; do node --check "$f"; done
+
+      - name: 版本一致性（tag 必须等于 package.json version，且 CHANGELOG 有该版本段落）
+        run: npm run check:version
+
+      - name: 清单校验
+        run: npm run check:manifest
 
       - name: 打包（npm pack）
         run: |
@@ -34,12 +40,38 @@ jobs:
           echo "VERSION=$TAG" >> "$GITHUB_ENV"
           # 优先取 tag 注释主体；取不到则用默认模板（正文细节交给 generate_release_notes 自动生成）
           BODY="$(git tag -l --format='%(contents:body)' "$TAG" 2>/dev/null || true)"
+          VERSION_NO_V="${TAG#v}"
+          if [ -z "$BODY" ] && [ -f CHANGELOG.md ]; then
+            # 没写 tag 注释时，取 CHANGELOG 里该版本的段落作为正文（到下一个 "## [" 标题为止）
+            BODY="$(awk -v ver="$VERSION_NO_V" '
+              BEGIN { start = "## [" ver "]"; flag = 0 }
+              { line = $0 }
+              flag == 0 && index(line, start) == 1 { flag = 1; next }
+              flag == 1 && substr(line, 1, 4) == "## [" { flag = 2 }
+              flag == 1 { print }
+            ' CHANGELOG.md | sed -e '/./,$!d')"
+          fi
           if [ -z "$BODY" ]; then
             BODY='HiTrading 发布。
 
           **安装**：对 DeepSeek Harness 说「帮我安装 GitHub 插件 https://github.com/atorber/dsh-hitrading」。'
           fi
-          printf '%s\n' "$BODY" > RELEASE_BODY.md
+          # 统一附加安装与市场信息
+          cat >> RELEASE_BODY_TAIL.md <<'EOF'
+
+          ---
+
+          **安装（三选一）**
+
+          1. 对 DeepSeek Harness 说：「帮我安装 GitHub 插件 https://github.com/atorber/dsh-hitrading」
+          2. 市场安装：`dsh plugin --profile web add @atorber/hitrading`
+          3. 离线包：下载下方 `hitrading.tgz` 后本地安装
+
+          **文档**：https://atorber.github.io/dsh-hitrading/
+          EOF
+          { printf '%s\n' "$BODY"; cat RELEASE_BODY_TAIL.md; } > RELEASE_BODY.tmp
+          mv RELEASE_BODY.tmp RELEASE_BODY.md
+          rm -f RELEASE_BODY_TAIL.md
 
       - name: 创建 GitHub Release
         uses: softprops/action-gh-release@v2

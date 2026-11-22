@@ -7,6 +7,7 @@ import { getQuotes } from './lib/quotes.js';
 import { openStore } from './lib/db.js';
 import { getWeibos, extractStocksFromWeibos, weiboExtractStats } from './lib/weibo.js';
 import { runOp, strategies, TIERS, DOMAINS, PCT_N } from './lib/ops.js';
+import { VERSION } from './lib/version.js';
 
 const SKILL_PATH = new URL('./skills/hitrading/SKILL.md', import.meta.url);
 /** 独立 HTTP 服务脚本的绝对路径（与插件同目录）。 */
@@ -896,6 +897,7 @@ export function apply(ctx) {
   async function svcStatus() {
     const up = await svcProbe();
     return {
+      version: VERSION,
       port: SERVICE_PORT,
       running: up,
       managed: !!(svcChild && svcChild.exitCode === null && !svcChild.killed),

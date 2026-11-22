@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { getWeibos } from './lib/weibo.js';
 import { runOp } from './lib/ops.js';
 import { openStore, defaultDbPath } from './lib/db.js';
+import { PKG_NAME, VERSION, REPO_URL, DOCS_URL } from './lib/version.js';
 
 const SKILL_PATH = new URL('./skills/hitrading/SKILL.md', import.meta.url);
 
@@ -73,7 +74,10 @@ const server = createServer(async (req, res) => {
     }
 
     if (url.pathname === '/health') {
-      return json(res, 200, { ok: true, value: { service: 'hitrading', time: new Date().toISOString() } });
+      return json(res, 200, {
+        ok: true,
+        value: { service: 'hitrading', name: PKG_NAME, version: VERSION, repo: REPO_URL, docs: DOCS_URL, time: new Date().toISOString() },
+      });
     }
 
     // 其他 Agent 可直接拉取 SKILL.md 安装
@@ -146,7 +150,7 @@ if (parentPid > 0) {
 }
 
 server.listen(PORT, HOST, () => {
-  console.log(`[HiTrading] 本地 HTTP 服务已启动：http://${HOST}:${PORT}`);
+  console.log(`[HiTrading] v${VERSION} 本地 HTTP 服务已启动：http://${HOST}:${PORT}`);
   console.log(`[HiTrading] 示例：curl -s "http://${HOST}:${PORT}/api?op=quote&symbols=600519,000001"`);
   console.log(`[HiTrading] 存储：${DB_PATH}${TOKEN ? '（token 鉴权已启用）' : ''}`);
 });

@@ -303,6 +303,7 @@ window.__ModuleLoader__.load({
 .htx-dot-down{background:var(--dsw-alias-state-error-primary)}
 .htx-dot-unknown{background:var(--dsw-alias-label-caption)}
 .htx-svcLabel{font-size:11.5px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.htx-ver{font-size:10.5px;line-height:1;padding:3px 6px;border-radius:5px;background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap}
 .htx-svcMsg{font-size:11px;color:var(--dsw-alias-state-business-primary);white-space:nowrap}
 .htx-svcBtns{display:flex;gap:4px}
 .htx-svcBtn{height:24px;padding:0 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;cursor:pointer;white-space:nowrap}
@@ -2287,6 +2288,23 @@ window.__ModuleLoader__.load({
     // ---------- API 说明 ----------
     const API_OPS = [
       {
+        op: 'version', title: '版本与仓库信息',
+        params: [],
+        req: `GET /api?op=version
+
+POST /api
+{"op":"version"}`,
+        res: `{
+  "ok": true,
+  "value": {
+    "name": "@atorber/hitrading",
+    "version": "1.1.0",
+    "repo": "https://github.com/atorber/dsh-hitrading",
+    "docs": "https://atorber.github.io/dsh-hitrading/"
+  }
+}`,
+      },
+      {
         op: 'suggest', title: '证券模糊搜索（股票/ETF 名称·拼音·代码）',
         params: [
           ['q', 'string', '是', '关键词：股票名称（茅台）、拼音缩写（gzmt）、代码（600519）或 ETF 名称（沪深300ETF）'],
@@ -3204,6 +3222,7 @@ node server.js          # 默认 http://127.0.0.1:8099
       const label = st == null ? '检测中…' : running ? `服务 :${port} 运行中` : `服务 :${port} 已停止`;
 
       return h('div', { className: 'htx-svc' },
+        st && st.version ? h('span', { className: 'htx-ver', title: `HiTrading ${st.version}` }, `v${st.version}`) : null,
         h('span', { className: `htx-dot htx-dot-${tone}`, 'aria-hidden': true }),
         h('span', { className: 'htx-svcLabel', title: st && st.pid ? `pid ${st.pid}` : '' }, label),
         msg ? h('span', { className: 'htx-svcMsg' }, msg) : null,

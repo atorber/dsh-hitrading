@@ -1,6 +1,6 @@
 {
   "name": "@atorber/hitrading",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "HiTrading — A股投资助手插件（DeepSeek Harness）：13 个 Agent 工具 + 15-Tab 交互控制台（自选/量能/强势股/涨停板/龙虎榜/快讯/公告/微博/模拟仓/选股/回测/预警/Agent 技能/API/使用说明），SQLite 持久化，模拟仓本地记账、不接券商。",
   "type": "module",
   "exports": {
@@ -9,13 +9,37 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
-  "files": ["index.js", "client.js", "server.js", "lib/*.js", "skills/**/*.md", "cordis.patch.yml", "locale/*.json", "icon.svg"],
+  "files": [
+    "index.js",
+    "client.js",
+    "server.js",
+    "lib/*.js",
+    "skills/**/*.md",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "CHANGELOG.md",
+    "screenshots.json",
+    "assets/*.png"
+  ],
   "scripts": {
-    "start:api": "node server.js"
+    "start:api": "node server.js",
+    "bump": "node scripts/bump.mjs",
+    "check:version": "node scripts/bump.mjs --check",
+    "check:manifest": "node scripts/check-manifest.mjs",
+    "test:smoke": "node scripts/smoke.mjs"
   },
   "keywords": [
-    "dsh", "deepseek-harness", "cordis", "cordis-plugin", "plugin",
-    "a-share", "stock", "quant", "trading", "hitrading"
+    "dsh",
+    "deepseek-harness",
+    "cordis",
+    "cordis-plugin",
+    "plugin",
+    "a-share",
+    "stock",
+    "quant",
+    "trading",
+    "hitrading"
   ],
   "author": "atorber",
   "license": "MIT",
@@ -28,17 +52,22 @@
   },
   "homepage": "https://github.com/atorber/dsh-hitrading#readme",
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "^0.2.2-rc.1"
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <1.0.0-0"
   },
   "publishConfig": {
     "access": "public"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-sidebar"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
     }
   }
 }

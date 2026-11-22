@@ -1,12 +1,12 @@
 # HiTrading — A股投资助手插件
 
-[![CI](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml) [![Release](https://github.com/atorber/dsh-hitrading/actions/workflows/release.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/releases) [![Docs](https://github.com/atorber/dsh-hitrading/actions/workflows/docs.yml/badge.svg)](https://atorber.github.io/dsh-hitrading/)
+[![npm](https://img.shields.io/npm/v/@atorber/hitrading.svg)](https://www.npmjs.com/package/@atorber/hitrading) [![CI](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml) [![Release](https://github.com/atorber/dsh-hitrading/actions/workflows/release.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/releases) [![Docs](https://github.com/atorber/dsh-hitrading/actions/workflows/docs.yml/badge.svg)](https://atorber.github.io/dsh-hitrading/)
 
 运行在当前 DeepSeek Harness 内的 Cordis 插件。为 Agent 提供 **13 个 A股工具**，并在 Web GUI 左侧栏挂出 **HiTrading 交互控制台**（15 个 Tab，所有模块都有 UI）。
 
 > 纯分析与跟踪，**不连接券商、不真实下单**；所有结论附投资风险提示，数据来自公开免费接口。
 
-仓库：[github.com/atorber/dsh-hitrading](https://github.com/atorber/dsh-hitrading) · 官网文档：[atorber.github.io/dsh-hitrading](https://atorber.github.io/dsh-hitrading/) · 包名 `@atorber/hitrading` · MIT
+仓库：[github.com/atorber/dsh-hitrading](https://github.com/atorber/dsh-hitrading) · 官网文档：[atorber.github.io/dsh-hitrading](https://atorber.github.io/dsh-hitrading/) · 包名 `@atorber/hitrading` · 当前版本 **v1.1.0**（[更新日志](https://github.com/atorber/dsh-hitrading/blob/main/CHANGELOG.md)） · MIT
 
 ## 交互控制台（UI）
 
@@ -76,11 +76,11 @@
 
 接口统一返回 `{ ok, value }` 或 `{ ok: false, error }`：
 
-- `GET /health`
+- `GET /health` — 返回 `{ service, name, version, repo, docs, time }`，可用于版本自检
 - `GET /api?op=<op>&...`
 - `POST /api`，body `{ "op": "<op>", "args": {...} }`
 
-`op` 与 Agent 工具同名：`quote` / `kline` / `analysis` / `screen` / `market_energy` / `powerful` / `limitup` / `watchlist.list|add|remove` / `portfolio.buy|sell|list|trades|reset` / `news` / `backtest` / `alerts.list|create|delete` / `weibo`（列表）。
+`op` 与 Agent 工具同名：`quote` / `kline` / `analysis` / `screen` / `market_energy` / `powerful` / `limitup` / `watchlist.list|add|remove` / `portfolio.buy|sell|list|trades|reset` / `news` / `backtest` / `alerts.list|create|delete` / `weibo`（列表），另有 `version`（包名/版本/仓库/文档地址）。
 
 ```python
 import requests
@@ -132,6 +132,47 @@ locale/*.json       # 中英双语标题/描述
 icon.svg            # 图标
 ```
 
+## 版本号与发布
+
+版本号的唯一真相源是 `package.json` 的 `version`，`CHANGELOG.md` 记录每个版本的变化。面板头部右侧、`GET /health`、`GET /api?op=version` 与独立服务启动日志都从同一处读取，不会出现手写漂移。
+
+```bash
+# 升级版本（会把 CHANGELOG 的 [Unreleased] 定版为带日期的版本段落）
+npm run bump -- patch     # 或 minor / major / 1.2.3
+
+# 只校验不修改（CI 与发布流水线都跑这个）
+npm run check:version     # version 格式、CHANGELOG 段落、是否低于已发布最高版本、tag 一致性
+```
+
+发布流程：把变更写进 `CHANGELOG.md` 的 `[Unreleased]` → `npm run bump -- minor` → 提交 → `git tag -a v1.2.0 -m "v1.2.0"` → 推送 tag。`.github/workflows/release.yml` 会校验 tag 与 `package.json` 版本一致，再打包并创建 GitHub Release。
+
+其他自查脚本：
+
+| 命令 | 作用 |
+| --- | --- |
+| `npm run check:version` | 版本号与 CHANGELOG 一致性 |
+| `npm run check:manifest` | 插件清单自检（含 dshmarket 收录要求：`dsh.bundle.patch`、`cordis.patch.yml`、locale、icon、screenshots.json） |
+| `npm run test:smoke` | 起临时端口的独立服务，核对 `/health`、`version`、`energy` 与未知 op 报错 |
+| `npm run start:api` | 手动启动独立 HTTP 服务 |
+
+### 发布到 dshmarket 市场
+
+dshmarket（[dshmarket.com](https://dshmarket.com/)）的目录数据来自 [awesome-dsh-plugin](https://awesome-dsh-plugin.com/)，每日 CI 刷新，所以「上架」= 让仓库被该目录收录。本仓库已备齐材料，按 [发布指南](https://atorber.github.io/dsh-hitrading/release/) 执行即可：
+
+1. 给仓库加 GitHub topic `dsh-plugin`：`gh api -X PUT repos/atorber/dsh-hitrading/topics -f names[]=dsh-plugin`
+2. （推荐）发布到 npm：`npm login && npm config set registry https://registry.npmjs.org && npm publish`
+3. 向 [awesome-dsh-plugin/awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提 PR，**只加一个文件** `data/plugins/atorber__dsh-hitrading.yml`，内容用本仓库的 [`market/atorber__dsh-hitrading.yml`](./market/atorber__dsh-hitrading.yml)
+4. 目录合并后次日生效，用户在 Harness 内即可搜到并一键安装
+
+仓库内已包含的市场材料：`assets/icon-180.png`（180×180 栅格图）、`screenshots.json`（6 张截图）、`market/atorber__dsh-hitrading.yml`（条目文件）。
+
+安装市场客户端并在本地验证：
+
+```bash
+dsh plugin --profile web add dshmarket   # 需 dsh 0.2.1+
+# 重启 dsh web → Plugins → Plugin Market Tab
+```
+
 ## 安装
 
 ### 从 GitHub 安装（推荐）
@@ -142,7 +183,7 @@ icon.svg            # 图标
 
 或直接在 Harness 内通过 `plugin_manager` 安装（`install_bundle`，target 填 `https://github.com/atorber/dsh-hitrading`）。安装程序会自动拉取仓库、解析 `@deepseek-ai/dsh-tools` peer 依赖并应用插件补丁。
 
-要求：DeepSeek Harness ≥ 0.2.2-rc.1（peer 依赖 `@deepseek-ai/dsh-tools@^0.2.2-rc.1`）。
+要求：DeepSeek Harness ≥ 0.2.2-rc.1（peer 依赖 `@deepseek-ai/dsh-tools@>=0.2.2-rc.1 <1.0.0-0`，显式覆盖预发布版本，避免 rc 被静默排除）。
 
 ### 从本地目录安装（开发）
 

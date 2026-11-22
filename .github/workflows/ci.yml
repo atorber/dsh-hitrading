@@ -26,29 +26,16 @@ jobs:
       - name: 语法检查（node --check 全部 JS）
         run: |
           fail=0
-          for f in index.js client.js server.js lib/*.js; do
+          for f in index.js client.js server.js lib/*.js scripts/*.mjs; do
             if node --check "$f"; then echo "  ok  $f"; else echo "::error file=$f::node --check failed"; fail=1; fi
           done
           exit $fail
 
-      - name: 清单与补丁校验
-        run: |
-          node --input-type=module -e "
-          import fs from 'node:fs';
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          const must = ['name','version','description','license','exports','files'];
-          for (const k of must) if (!pkg[k]) { console.error('package.json missing', k); process.exit(1); }
-          if (!pkg.exports['.'] || !pkg.exports['./client'] || !pkg.exports['./icon']) { console.error('exports incomplete'); process.exit(1); }
-          if (!pkg.dsh?.bundle?.patch) { console.error('dsh.bundle.patch missing'); process.exit(1); }
-          const patch = fs.readFileSync('cordis.patch.yml', 'utf8');
-          if (!patch.includes(pkg.name)) { console.error('patch does not reference package name'); process.exit(1); }
-          const zh = JSON.parse(fs.readFileSync('locale/zh.json', 'utf8'));
-          const en = JSON.parse(fs.readFileSync('locale/en.json', 'utf8'));
-          for (const [name, l] of [['zh', zh], ['en', en]]) {
-            if (!l.meta?.title || !l.meta?.description) { console.error('locale/' + name + '.json meta incomplete'); process.exit(1); }
-          }
-          console.log('manifest ok:', pkg.name, pkg.version);
-          "
+      - name: 版本与 CHANGELOG 一致性
+        run: npm run check:version
+
+      - name: 清单与补丁校验（含市场收录要求）
+        run: npm run check:manifest
 
       - name: 打包校验（npm pack，校验文件清单）
         run: |
@@ -75,6 +62,7 @@ jobs:
           SVPID=$!
           sleep 2
           curl -fsS -m 5 http://127.0.0.1:18099/health || { kill $SVPID; echo '::error::server health check failed'; exit 1; }
+          curl -fsS -m 5 http://127.0.0.1:18099/api?op=version || { kill $SVPID; echo '::error::version op failed'; exit 1; }
           curl -fsS -m 10 http://127.0.0.1:18099/api?op=energy | head -c 80 || { kill $SVPID; echo '::error::energy op failed'; exit 1; }
           echo ''
           kill $SVPID

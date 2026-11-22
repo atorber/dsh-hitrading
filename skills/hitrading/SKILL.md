@@ -32,7 +32,11 @@ node server.js
 
 ```bash
 curl -s http://127.0.0.1:8099/health
-# {"ok":true,"value":{"service":"hitrading","time":"..."}}
+# → {"ok":true,"value":{"service":"hitrading","name":"@atorber/hitrading","version":"1.1.0","repo":"...","docs":"...","time":"..."}}
+
+# 只想知道版本（面板头部右侧的 vX.Y.Z 徽标同源）
+curl -s "http://127.0.0.1:8099/api?op=version"
+# {"ok":true,"value":{"name":"@atorber/hitrading","version":"1.1.0","repo":"https://github.com/atorber/dsh-hitrading","docs":"https://atorber.github.io/dsh-hitrading/"}}
 ```
 
 可选环境变量：

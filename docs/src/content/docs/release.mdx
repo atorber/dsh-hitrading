@@ -1,0 +1,152 @@
+---
+title: 版本与发布
+description: 版本号管理规则、升级命令，以及把插件收录进 dshmarket 市场的完整步骤
+---
+
+import Shot from '../../components/Shot.astro';
+
+本项目从 v1.1.0 起启用版本号管理：`package.json` 的 `version` 是唯一真相源，`CHANGELOG.md` 记录每个版本的变化，打 tag 后由 GitHub Actions 校验一致性并发布 Release。
+
+## 版本号规则
+
+遵循[语义化版本](https://semver.org/lang/zh-CN/)：
+
+| 变更类型 | 升级位 | 例子 |
+| --- | --- | --- |
+| 不兼容的改动（删除工具、改参数含义、改存储结构） | major | `1.1.0 → 2.0.0` |
+| 向下兼容的新功能（新 Tab、新工具、新操作） | minor | `1.1.0 → 1.2.0` |
+| 向下兼容的修复（样式、文案、数据源回退） | patch | `1.1.0 → 1.1.1` |
+
+版本号出现在三处，且都从同一份 `package.json` 读取，不存在手写漂移：
+
+- 面板头部右侧的 `vX.Y.Z` 徽标（来自 `service.status`）
+- `GET /api?op=version` 与 `GET /health`
+- 独立服务启动日志一行 `[HiTrading] vX.Y.Z 本地 HTTP 服务已启动`
+
+## 升级流程
+
+```bash
+# 1) 先把本次改动写进 CHANGELOG.md 的 [Unreleased] 段落
+# 2) 升版本（会把 Unreleased 定版为带日期的版本段落，并维护 compare 链接）
+npm run bump -- patch     # 或 minor / major / 1.2.3
+
+# 3) 脚本会提示下面这几条，逐条执行
+git add package.json CHANGELOG.md
+git commit -m "chore(release): v1.2.0"
+git tag -a v1.2.0 -m "v1.2.0"
+git push origin main --follow-tags
+```
+
+只校验不修改（CI 与本地都可以跑）：
+
+```bash
+npm run check:version
+```
+
+校验内容：`version` 必须是 `x.y.z`；`CHANGELOG.md` 里必须有对应版本的段落；版本号不能低于 CHANGELOG 已发布的最高版本；发布流水线里 tag 必须等于 `package.json` 的版本（避免 tag 打 `v1.2.0` 却发布 1.1.0 的包）。
+
+打上 `v*.*.*` 标签后 `.github/workflows/release.yml` 依次执行：语法检查 → 版本一致性校验 → `npm pack` → 生成 Release 说明 → 上传 `hitrading.tgz`。
+
+## 发布到 dshmarket 市场
+
+[dshmarket](https://dshmarket.com/) 是 DeepSeek Harness 内的插件市场。它的目录数据来自 [`awesome-dsh-plugin`](https://awesome-dsh-plugin.com/)，每天由 CI 刷新，同时对外提供一份 format-1 索引（`https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json`）。所以「上架市场」等于「让仓库被这个目录收录」，不需要单独提交表单。
+
+### 第 0 步：自检
+
+收录有硬性要求，先确认仓库满足：
+
+- `package.json` 声明了 `dsh.bundle.patch`（只有 `dsh.client` 会被拒），且同目录有 `cordis.patch.yml`
+- 仓库里有真实可运行的代码（不是占位或纯 README）
+- 仓库至少 1 天历史（CI 自动检查仓库创建时间，不看提交数）
+- 仓库添加了 `dsh-plugin` 这个 GitHub topic
+- 描述客观准确：里面提到的数字、工具名、API 名会与代码核对
+
+本仓库可以一条命令自查：
+
+```bash
+npm run check:manifest
+```
+
+### 第 1 步：加 GitHub topic
+
+```bash
+gh api -X PUT repos/atorber/dsh-hitrading/topics \
+  -H "Accept: application/vnd.github+json" \
+  -f names[]=dsh-plugin -f names[]=cordis -f names[]=a-share
+```
+
+### 第 2 步：发布到 npm（推荐，非必须）
+
+发布 npm 后安装时跳过构建审批（`allowBuilds`），市场也会优先下载 npm tarball 而不是整个 GitHub 仓库。
+
+```bash
+npm login                                  # 需要 npmjs.com 账号
+npm config set registry https://registry.npmjs.org
+npm publish                                # publishConfig.access=public，直接发公开包
+```
+
+:::caution[注意]
+`package.json` 的 `repository` 字段必须指回本仓库（`https://github.com/atorber/dsh-hitrading`）。目录会自动从 npm registry 读取这个映射，在收录条目里手写 `npm:` 字段会被拒。
+:::
+
+不发布 npm 也可以：把 `npm pack` 出来的 tarball 挂到 GitHub Release 上，然后在收录条目里加 `tarball:` 指过去（必须是 GitHub Release 托管的 https `.tgz`，且 `latest/download/` 配带版本号的文件名会腐烂，建议 pin tag）。
+
+### 第 3 步：准备仓库内的市场材料
+
+已经放在仓库根目录，随版本一起维护，不需要额外操作：
+
+- `assets/icon-180.png` — 180×180 方形栅格图（市场里约 96px 显示，禁用 SVG 与第三方图床）
+- `screenshots.json` — 1–8 张截图，相对路径，次日构建时自动拾取
+- `market/atorber__dsh-hitrading.yml` — 待提交给目录仓库的条目文件
+
+### 第 4 步：向目录仓库提 PR
+
+在 [`awesome-dsh-plugin/awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提一个 PR，**只新增一个文件** `data/plugins/atorber__dsh-hitrading.yml`，内容就是本仓库 `market/` 下那份：
+
+```yaml
+url: https://github.com/atorber/dsh-hitrading
+name: atorber/dsh-hitrading
+category: tools
+description:
+  en: A-share market assistant with 13 agent tools and a 15-tab console ...
+  zh: A股投资助手：13 个 Agent 工具 + 15 个 Tab 控制台 ...
+icon: https://raw.githubusercontent.com/atorber/dsh-hitrading/main/assets/icon-180.png
+```
+
+规则要点：
+
+- 文件名固定为 `<owner>__<repo>.yml`，`url` 必须与仓库地址完全一致
+- 只有 `description.en` 是必填，句号结尾；描述里出现 `: ` 必须给整行加引号
+- `category` 取值见[目录的分类表](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/blob/main/contributing.md)（`tools` / `ui` / `workflow` / `docs` / `skill` 等）
+- 一个 PR 最多 3 条
+- 不要手改 `README.md`，它是自动生成的
+
+CI 会依次检查条目数、`dsh.bundle`、仓库年龄，然后跑 awesome-lint 与站点构建；绿了之后由维护者人工读代码核对描述。如果被打了 `held: author` 标签，改动推到同一分支并留一条评论即可，不必重开 PR。
+
+### 第 5 步：等待生效
+
+目录合并后网站自动重建，次日构建会拾取截图与图标。用户在 DeepSeek Harness 里即可通过市场搜索到本插件：
+
+```
+dsh plugin --profile web add dshmarket     # 装市场客户端（dsh 0.2.1+）
+```
+
+重启 `dsh web` 后在 Plugins 页使用 Plugin Market / Discover。也可以在 Plugins → Discover → Index sources 里直接添加索引源：
+
+```
+https://cdn.jsdelivr.net/npm/dsh-plugin-catalog/index.json
+```
+
+:::note[网络与等待期]
+市场对新版本有约 24 小时的发布等待期；本地测试可以加 `--config.minimum-release-age=0` 跳过。安装时 GitHub 地址会被规范成 `github:owner/repo`，也可以用 `github:owner/repo#<sha>` 固定到某个提交。
+:::
+
+### 备选：不依赖市场的安装方式
+
+即使不收录，也可以直接用 GitHub 地址安装：
+
+```
+对 DeepSeek Harness 说「帮我安装 GitHub 插件 https://github.com/atorber/dsh-hitrading」
+```
+
+或本地软链开发（见[安装](./install.mdx)）。

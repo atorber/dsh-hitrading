@@ -17,7 +17,8 @@ import Shot from '../../components/Shot.astro';
 | 端口 | `HITRADING_PORT`（默认 8099） |
 | 鉴权 | `HITRADING_TOKEN`（设置后请求需带 token） |
 | 独立库 | `HITRADING_DB`（默认同 GUI 的 `~/.dsh/storages/hitrading.db`） |
-| 健康检查 | `GET /health` |
+| 健康检查 | `GET /health`（返回 `service / name / version / repo / docs / time`） |
+| 版本信息 | `GET /api?op=version` |
 | 技能包 | `GET /skill.md` |
 
 端口被占用时服务进程会干净退出，不影响 Harness。

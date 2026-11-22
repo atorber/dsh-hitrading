@@ -52,6 +52,7 @@ export default defineConfig({
             { label: 'Agent 工具', slug: 'tools' },
             { label: 'HTTP API', slug: 'http-api' },
             { label: '架构与数据', slug: 'architecture' },
+            { label: '版本与发布', slug: 'release' },
           ],
         },
         { label: '常见问题', slug: 'faq' },
