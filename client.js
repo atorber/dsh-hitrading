@@ -278,6 +278,34 @@ window.__ModuleLoader__.load({
 .htx-breadthUp{background:var(--dsw-alias-state-error-primary)}
 .htx-breadthFlat{background:var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary)}
 .htx-breadthDown{background:var(--dsw-alias-state-success-primary)}
+
+/* 盘前竞价：状态条 / 指数条 / 分档直方 / 异动卡 */
+.htx-aucPhase{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 10px;border:1px solid var(--dsw-alias-border-l3);border-radius:9px;background:var(--dsw-specific-sidebar-fill);margin-bottom:10px;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
+.htx-aucPhase.live{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,transparent);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 8%,transparent)}
+.htx-aucClock{font-variant-numeric:tabular-nums;font-weight:650;color:var(--dsw-alias-label-primary)}
+.htx-aucDot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;background:var(--dsw-alias-label-tertiary)}
+.htx-aucPhase.live .htx-aucDot{background:var(--dsw-alias-state-error-primary);animation:htx-pulse 1.2s infinite}
+@keyframes htx-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.htx-aucNote{color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.6}
+.htx-idxGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:10px}
+.htx-idxCard{border:1px solid var(--dsw-alias-border-l3);border-radius:9px;padding:7px 10px;background:var(--dsw-alias-bg-base)}
+.htx-idxName{font-size:10.5px;color:var(--dsw-alias-label-tertiary)}
+.htx-idxVal{margin-top:2px;display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.htx-idxOpen{font-size:15px;font-weight:650;font-variant-numeric:tabular-nums}
+.htx-idxPct{font-size:12.5px;font-weight:650;font-variant-numeric:tabular-nums}
+.htx-distGrid{display:grid;grid-template-columns:repeat(11,1fr);gap:4px;align-items:end;height:78px;padding:6px 4px 0}
+.htx-distCol{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px;min-width:0}
+.htx-distBar{width:100%;max-width:34px;min-height:2px;border-radius:3px 3px 0 0;background:var(--dsw-alias-border-l3);position:relative}
+.htx-distCnt{font-size:10px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary)}
+.htx-distLbl{font-size:9.5px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center}
+.htx-cmpChips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.htx-cmpChip{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
+.htx-watchHint{display:flex;flex-wrap:wrap;gap:6px}
+.htx-watchTag{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--dsw-alias-border-l3);background:var(--dsw-specific-sidebar-fill);font-variant-numeric:tabular-nums}
+.htx-watchTag b{font-weight:650;margin-right:4px}
+.htx-aucBandUp{background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 72%,var(--dsw-alias-bg-base))}
+.htx-aucBandDn{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 72%,var(--dsw-alias-bg-base))}
+.htx-aucBandFlat{background:var(--dsw-alias-border-l3)}
 .htx-lhbRow{display:grid;grid-template-columns:76px 1fr 76px;gap:10px;align-items:center;cursor:pointer;border-radius:8px;padding:2px 4px}
 .htx-lhbRow:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .htx-lhbName{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1653,6 +1681,209 @@ window.__ModuleLoader__.load({
                 ' 涨停板仅供短线情绪观察，不构成投资建议。'))));
     }
 
+    // ---------- 盘前竞价 ----------
+    function AuctionView() {
+      const [date, setDate] = useState('');           // '' = 最新交易日
+      const [view, setView] = useState('abnormal');   // 异动分区
+      const [sort, setSort] = useState({ key: null, dir: null });
+      const data = useData(() => api('auction', date ? { date } : {}), [date], { refreshMs: 30_000 });
+      const v = data.value || {};
+      const items = v.items || [];
+      const st = v.stats || {};
+      const dates = v.dates || [];
+      const dist = v.distribution || [];
+      const indices = v.indices || [];
+      const watchlist = v.watchlist || [];
+      const compare = v.compare || null;
+      const latestDate = dates.find((d) => d.isLatest)?.date || '';
+      const active = date || latestDate;
+      const hasVolume = st.hasVolume !== false;
+      const isLive = v.phase === 'live';
+      const { adding, quickAdd } = useQuickAdd();
+
+      const aucPct = (x) => (x == null ? '-' : `${x > 0 ? '+' : ''}${x}%`);
+      const cls = (x) => (x == null ? '' : x > 0 ? 'htx-up' : x < 0 ? 'htx-down' : '');
+      const metric = (label, value, c) => h('div', { className: 'htx-metric' },
+        h('p', { className: 'htx-metricLabel' }, label),
+        h('p', { className: 'htx-metricValue' + (c ? ' ' + c : '') }, value));
+
+      const VIEWS = [
+        { value: 'abnormal', label: '全部异动', test: (r) => Math.abs(r.openPct ?? 0) >= 3 || r.orderRatio != null && Math.abs(r.orderRatio) >= 50 },
+        { value: 'up3', label: '抢筹 ≥3%', test: (r) => r.openPct >= 3 },
+        { value: 'down3', label: '砸盘 ≤-3%', test: (r) => r.openPct <= -3 },
+        { value: 'limitup', label: '竞价涨停', test: (r) => r.openPct >= (String(r.code).startsWith('4') || String(r.code).startsWith('8') || String(r.code).startsWith('92') ? 29.8 : /^(300|301|688|689)/.test(String(r.code)) ? 19.8 : 9.8) },
+        { value: 'limitdown', label: '竞价跌停', test: (r) => r.openPct <= -(String(r.code).startsWith('4') || String(r.code).startsWith('8') || String(r.code).startsWith('92') ? 29.8 : /^(300|301|688|689)/.test(String(r.code)) ? 19.8 : 9.8) },
+        { value: 'watch', label: '我的自选', test: (r) => watchlist.some((w) => w.code === r.code) },
+        { value: 'all', label: '全市场', test: () => true },
+      ];
+      const curView = VIEWS.find((x) => x.value === view) || VIEWS[0];
+
+      const columns = [
+        { label: '代码', render: (r) => h('span', { style: { fontWeight: 600 } }, r.code) },
+        { label: '名称', render: (r) => r.name },
+        { label: '昨收', align: 'right', render: (r) => fmt(r.prevClose) },
+        { label: '竞价格', align: 'right', sortable: true, render: (r) => fmt(r.open), sortValue: (r) => r.open ?? null, headerTitle: '9:15–9:25 集合竞价的虚拟开盘参考价；9:25 后为定格开盘价' },
+        {
+          label: '竞价涨幅', align: 'right', sortable: true,
+          render: (r) => aucPct(r.openPct), className: (r) => cls(r.openPct), sortValue: (r) => r.openPct ?? null,
+          headerTitle: '竞价格相对昨收的涨跌幅 =（竞价格 − 昨收）/ 昨收',
+        },
+        {
+          label: '竞价量(手)', align: 'right', sortable: true,
+          render: (r) => (r.volume == null ? '-' : Number(r.volume).toLocaleString('zh-CN')),
+          sortValue: (r) => r.volume ?? null,
+          headerTitle: hasVolume ? '集合竞价撮合量（手），9:25 定格' : '重建快照无法回溯竞价量',
+        },
+        {
+          label: '竞价额(万)', align: 'right', sortable: true,
+          render: (r) => (r.amount == null ? '-' : (r.amount / 1e4).toLocaleString('zh-CN', { maximumFractionDigits: 1 })),
+          sortValue: (r) => r.amount ?? null, headerTitle: '集合竞价成交额（万元）',
+        },
+        {
+          label: '委比%', align: 'right', sortable: true, headerTitle: '五档委托（买盘−卖盘）/（买盘+卖盘）×100，正值为买盘占优',
+          render: (r) => (r.orderRatio == null ? '-' : `${r.orderRatio > 0 ? '+' : ''}${r.orderRatio}%`),
+          className: (r) => cls(r.orderRatio), sortValue: (r) => r.orderRatio ?? null,
+        },
+        {
+          label: '委差(手)', align: 'right', sortable: true, headerTitle: '五档买量 − 五档卖量（手），近似未匹配买盘',
+          render: (r) => (r.unmatched == null ? '-' : Number(r.unmatched).toLocaleString('zh-CN')),
+          className: (r) => cls(r.unmatched), sortValue: (r) => r.unmatched ?? null,
+        },
+        { label: '行业', render: (r) => r.industry || '-' },
+        {
+          label: '', render: (r) => h('button', {
+            type: 'button', className: 'htx-btn htx-btnSm', disabled: adding === r.code,
+            title: `把 ${r.name}(${r.code}) 加入自选`, onClick: () => quickAdd(r.code),
+          }, adding === r.code ? '加入中…' : '+ 自选'),
+        },
+      ];
+      const onSortChange = (key) => setSort((s) => (
+        s.key !== key ? { key, dir: 'desc' } : s.dir === 'desc' ? { key, dir: 'asc' } : { key: null, dir: null }
+      ));
+      const sortCol = sort.key && sort.dir ? columns.find((c) => c.label === sort.key) : null;
+      const filtered = items.filter(curView.test);
+      const displayRows = sortCol && sortCol.sortValue
+        ? [...filtered].sort((a, b) => {
+            const va = sortCol.sortValue(a), vb = sortCol.sortValue(b);
+            if (va == null && vb == null) return 0;
+            if (va == null) return 1;
+            if (vb == null) return -1;
+            return sort.dir === 'asc' ? va - vb : vb - va;
+          })
+        : [...filtered].sort((a, b) => Math.abs(b.openPct ?? -999) - Math.abs(a.openPct ?? -999));
+
+      const maxCnt = Math.max(1, ...dist.map((d) => d.count || 0));
+      const bandCls = (label) => label.startsWith('-') || label.startsWith('<') ? 'htx-aucBandDn' : label.startsWith('≥') || /^[0-9]/.test(label) ? 'htx-aucBandUp' : 'htx-aucBandFlat';
+
+      const emptyNote = v.missingSnapshot
+        ? `${active} 未采集个股竞价快照（本功能上线后每日 09:25 自动落库）。上方四大指数竞价涨跌仍可复盘。`
+        : `${active} 暂无${curView.label}股票`;
+
+      return h('div', { className: 'htx-split' },
+        // 左侧交易日导航
+        h('div', { className: 'htx-dateNav', role: 'navigation', 'aria-label': '交易日列表' },
+          h('span', { className: 'htx-fieldLabel', style: { padding: '0 4px 2px' } }, '交易日'),
+          dates.map((d) => h('button', {
+            key: d.date, type: 'button',
+            className: 'htx-dateNavBtn' + (active === d.date ? ' htx-dateNavOn' : ''),
+            onClick: () => { setDate(d.isLatest ? '' : d.date); setSort({ key: null, dir: null }); },
+            title: d.isLatest ? '最新交易日（竞价时段实时）' : `${d.date} 盘前竞价`,
+          },
+            h('span', { className: 'htx-dateNavDate' }, d.date.slice(5), h('span', { className: 'htx-dateNavWk' }, ' ' + WEEK[new Date(d.date + 'T00:00:00').getDay()])),
+            h('span', { className: 'htx-dateNavCnt' }, d.hasSnapshot ? '快照' : d.isLatest ? '最新' : '·'))),
+          h('span', { className: 'htx-dateNavHint' }, '最近 10 个交易日；带「快照」为 9:25 定格采集，可复盘竞价量与委比')),
+
+        // 右侧内容
+        h('div', { style: { flex: 1, minWidth: 0 } },
+          h('div', { className: 'htx-toolbar' },
+            h('div', { className: 'htx-row', style: { marginBottom: 0 } },
+              h('h3', { className: 'htx-cardTitle', style: { margin: 0 } }, `盘前竞价 · ${v.date || '加载中'}`),
+              h('span', { className: 'htx-badge' + (isLive ? ' htx-badgeUp' : ' htx-badgeFlat') }, v.phaseLabel || (isLive ? '竞价中' : '已定格'))),
+            h('span', { className: 'htx-meta' },
+              `全市场 ${st.total ?? 0} 只 · 高开 ${st.up ?? 0} / 低开 ${st.down ?? 0}`,
+              v.updatedAt || data.updatedAt ? ` · ${new Date(v.updatedAt || data.updatedAt).toLocaleTimeString('zh-CN', { hour12: false })}` : '',
+              data.error ? h('span', { className: 'htx-metaWarn', title: `刷新失败：${data.error}` }, ' · 刷新失败') : null),
+            h(RefreshBtn, { busy: data.refreshing, onClick: () => data.reload(), label: '立即刷新盘前竞价' })),
+
+          data.value == null
+            ? (data.error ? h(ErrorBox, { error: data.error }) : h(Spinner))
+            : h('div', null,
+              // 状态条
+              h('div', { className: 'htx-aucPhase' + (isLive ? ' live' : '') },
+                h('span', null, h('span', { className: 'htx-aucDot' }), v.phaseLabel || '盘前竞价'),
+                h('span', { className: 'htx-aucClock' }, v.clock || ''),
+                isLive && v.countdown != null
+                  ? h('span', null, `距 9:25 定格 ${Math.floor(v.countdown / 60)} 分 ${String(v.countdown % 60).padStart(2, '0')} 秒`)
+                  : null,
+                v.capturedAt ? h('span', { className: 'htx-aucNote' }, `快照采集于 ${new Date(v.capturedAt).toLocaleString('zh-CN', { hour12: false })}`) : null,
+                v.partial ? h('span', { className: 'htx-metaWarn' }, '本轮数据部分覆盖') : null),
+
+              // 指标卡
+              h('div', { className: 'htx-metrics' },
+                metric('高开家数', String(st.up ?? 0), 'htx-up'),
+                metric('低开家数', String(st.down ?? 0), 'htx-down'),
+                metric('竞价涨停', String(st.limitUp ?? 0), 'htx-up'),
+                metric('竞价跌停', String(st.limitDown ?? 0), 'htx-down'),
+                metric('大幅高开 ≥3%', String(st.high3 ?? 0), 'htx-up'),
+                metric('大幅低开 ≤-3%', String(st.low3 ?? 0), 'htx-down'),
+                metric('平均竞价涨幅', aucPct(st.avgPct), cls(st.avgPct)),
+                metric('竞价量(万手)', st.volumeShou == null ? '-' : (st.volumeShou / 1e4).toLocaleString('zh-CN', { maximumFractionDigits: 1 })),
+                metric('竞价额(亿)', st.amountYi == null ? '-' : String(st.amountYi))),
+
+              // 指数竞价 + 昨日对比
+              indices.length ? h('div', { className: 'htx-idxGrid' },
+                indices.map((x) => h('div', { key: x.code, className: 'htx-idxCard' },
+                  h('div', { className: 'htx-idxName' }, x.name),
+                  h('div', { className: 'htx-idxVal' },
+                    h('span', { className: 'htx-idxOpen' }, fmt(x.open)),
+                    h('span', { className: 'htx-idxPct ' + cls(x.openPct) }, aucPct(x.openPct)))))) : null,
+
+              compare ? h('div', { className: 'htx-cmpChips' },
+                h('span', { className: 'htx-cmpChip' }, compare.hasStockSnapshot
+                  ? `较 ${compare.date || '上一交易日'}：高开 ${compare.deltaUp == null ? '-' : (compare.deltaUp > 0 ? '+' : '') + compare.deltaUp} 只 · 竞价涨停 ${compare.deltaLimitUp == null ? '-' : (compare.deltaLimitUp > 0 ? '+' : '') + compare.deltaLimitUp} 只 · 平均涨幅 ${aucPct(compare.deltaAvgPct)}`
+                  : `较 ${compare.date || '上一交易日'}：暂无个股快照可对比`)) : null,
+
+              // 涨跌家数分档
+              dist.length ? h('div', { className: 'htx-card' },
+                h('h3', { className: 'htx-cardTitle' }, '竞价涨跌家数分布', h('span', { className: 'htx-meta' }, ` · 共 ${st.valid ?? 0} 只有效竞价，按 11 档半开区间统计，互不重叠`)),
+                h('div', { className: 'htx-distGrid' },
+                  dist.map((d) => h('div', { key: d.label, className: 'htx-distCol', title: `${d.label}：${d.count} 只` },
+                    h('span', { className: 'htx-distCnt' }, String(d.count)),
+                    h('div', { className: 'htx-distBar ' + bandCls(d.label), style: { height: `${Math.max(2, (d.count / maxCnt) * 52)}px` } }),
+                    h('span', { className: 'htx-distLbl' }, d.label))))) : null,
+
+              // 自选股竞价提示
+              watchlist.length ? h('div', { className: 'htx-card' },
+                h('h3', { className: 'htx-cardTitle' }, '自选股竞价提示', h('span', { className: 'htx-meta' }, ` · ${watchlist.length} 只，按异动幅度排序`)),
+                h('div', { className: 'htx-watchHint' },
+                  watchlist.slice(0, 20).map((r) => h('span', {
+                    key: r.code, className: 'htx-watchTag',
+                    title: `${r.name}(${r.code}) 竞价格 ${fmt(r.open)} / 昨收 ${fmt(r.prevClose)}`,
+                  },
+                    h('b', null, r.name),
+                    h('span', { className: cls(r.openPct) }, `${r.tag} ${aucPct(r.openPct)}`))))) : null,
+
+              // 异动分区 + 主表
+              h('div', { className: 'htx-card', style: { paddingTop: 10 } },
+                h('div', { className: 'htx-catChips', role: 'group', 'aria-label': '竞价异动分区' },
+                  VIEWS.map((o) => h('button', {
+                    key: o.value, type: 'button', className: 'htx-catChip', 'aria-pressed': view === o.value,
+                    onClick: () => { setView(o.value); setSort({ key: null, dir: null }); },
+                    title: `${o.label}（点击查看）`,
+                  }, o.label))),
+                !displayRows.length ? h(Empty, { text: emptyNote })
+                  : h('div', { style: { overflowX: 'auto' } },
+                    h(DataTable, { columns, rows: displayRows.slice(0, 300), getKey: (r) => r.code, sort, onSortChange })),
+                displayRows.length > 300 ? h('p', { className: 'htx-chartNote' }, `共 ${displayRows.length} 只，表格仅显示异动幅度最大的前 300 只。`) : null),
+
+              h('p', { className: 'htx-chartNote' },
+                v.note || '盘前竞价数据仅供研究参考，不构成投资建议。',
+                v.scanNote ? ` ${v.scanNote}` : '',
+                hasVolume ? '' : ' 当前为开盘价重建快照，竞价量/委比/未匹配量无法回溯，列显示「—」。',
+                ' 数据源：腾讯 qt.gtimg.cn（竞价实时/定格）、新浪 Market_Center（全市场代码表与开盘价重建）、腾讯指数日K（历史指数竞价）。',
+                ' 竞价时段价格可撤单，最终以 09:25 定格为准。'))));
+    }
+
     // ---------- 模拟仓 ----------
     function PortfolioView() {
       const [form, setForm] = useState({ symbol: '', shares: '', price: '' });
@@ -2595,6 +2826,43 @@ POST /api
 }`,
       },
       {
+        op: 'auction', title: '盘前竞价（异动 / 指数 / 涨跌家数 / 竞价量，最近 10 个交易日）',
+        params: [
+          ['date', 'string', '否', '交易日 YYYY-MM-DD，默认最新交易日；仅支持最近 10 个交易日'],
+          ['force', 'boolean', '否', '竞价时段跳过 45s 缓存强制刷新（默认 false）'],
+        ],
+        req: `GET /api?op=auction
+GET /api?op=auction&date=2026-11-20
+
+POST /api
+{"op":"auction","args":{"date":"2026-11-20"}}`,
+        res: `{
+  "ok": true,
+  "value": {
+    "date": "2026-11-20", "phase": "snapshot",
+    "phaseLabel": "已定格 · 2026-11-20 09:25", "clock": "14:32:10",
+    "dates": [ { "date": "2026-11-20", "isLatest": true, "hasSnapshot": true } ],
+    "indices": [ { "code": "000001", "name": "上证指数", "open": 3288.12, "prevClose": 3276.03, "openPct": 0.37 } ],
+    "distribution": [ { "label": "<-10%", "count": 3 }, { "label": "-1~1", "count": 2100 } ],
+    "items": [
+      { "code": "300476", "name": "胜宏科技", "open": 112.0, "prevClose": 108.22,
+        "openPct": 3.49, "volume": 8200, "amount": 91840000,
+        "orderRatio": 62.5, "unmatched": 3100, "industry": null, "ts": "20261120092500" }
+    ],
+    "stats": { "total": 5300, "valid": 5120, "up": 2800, "down": 2100, "flat": 220,
+               "limitUp": 18, "limitDown": 6, "high3": 240, "low3": 110,
+               "avgPct": 0.42, "medianPct": 0.18, "volumeShou": 860000,
+               "amountYi": 128.6, "hasVolume": true },
+    "watchlist": [ { "code": "300476", "name": "胜宏科技", "openPct": 3.49, "tag": "大幅高开" } ],
+    "compare": { "date": "2026-11-19", "hasStockSnapshot": true,
+                 "deltaUp": 310, "deltaLimitUp": 5, "deltaAvgPct": 0.16 },
+    "sources": ["腾讯 qt.gtimg.cn（9:25 定格快照）"],
+    "note": "9:25 集合竞价定格快照，收盘后不再变化。",
+    "capturedAt": "2026-11-20T01:25:02.000Z"
+  }
+}`,
+      },
+      {
         op: 'news', title: '快讯 / 公告 / 龙虎榜',
         params: [
           ['type', 'string', '是', 'news 快讯 / announcement 公告 / lhb 龙虎榜'],
@@ -2948,6 +3216,10 @@ curl -X POST http://127.0.0.1:8099/api \\
         prompts: ['今天涨停板有哪些票？首板和连板各多少', '看看 11 月 18 日的最高连板是几板'],
       },
       {
+        tool: 'hitrading_auction', desc: '盘前竞价：竞价异动、四大指数竞价、涨跌家数分布、竞价量与委比、自选提示',
+        prompts: ['今天集合竞价有哪些大幅高开的股票？', '看看今天竞价涨停和砸盘的股票', '对比一下今天和昨天竞价的高开家数'],
+      },
+      {
         tool: 'hitrading_watchlist', desc: '自选股增删查（与面板共享）',
         prompts: ['把 600519 加入自选', '看看我的自选股现在什么情况'],
       },
@@ -3114,6 +3386,7 @@ curl -X POST http://127.0.0.1:8099/api \\
         ['量能', '沪深京三市日成交额趋势（柱 + MA5）：区间 20/40/60 日、量能状态、指数涨跌与明细表'],
         ['强势股', '按交易日看当日涨幅 > 7% 的股票：左侧日期导航切换，含涨停连板、首封时间、行业与最新涨跌'],
         ['涨停板', '按连板梯队（首板/二板/三板…）列出当日涨停股：封单、炸板、封板时间、行业，左侧日期导航与涨停家数'],
+        ['盘前竞价', '9:15–9:25 集合竞价：实时异动、四大指数竞价、11 档涨跌家数、竞价量/委比、自选竞价提示；9:25 自动定格快照，支持最近 10 个交易日复盘'],
         ['龙虎榜', '每日龙虎榜：资金摘要、多空分歧榜、上榜原因与净买额排序'],
         ['快讯', 'A股 7×24 快讯：监管/宏观/行情分类标记、监管动态提醒、只看自选'],
         ['公告', '个股公告：类型分类（业绩/激励/并购/增减持/分红/融资/治理）、按代码查询、一键加自选'],
@@ -3122,12 +3395,12 @@ curl -X POST http://127.0.0.1:8099/api \\
         ['选股', '按涨跌幅/成交额/换手/市值排序，叠加市盈率、市值、涨幅、换手区间过滤'],
         ['回测', '双均线/MACD/RSI 策略回测，出权益曲线、收益、回撤、夏普、胜率'],
         ['预警', '设置价格/涨跌幅阈值，交易时段由定时器检查并标记「已触发」'],
-        ['Agent 技能', '13 个工具的可复制提示词示例——照抄到对话框即可'],
+        ['Agent 技能', '14 个工具的可复制提示词示例——照抄到对话框即可'],
         ['API', '独立 HTTP 服务的完整接口文档（参数表 + 请求/响应示例）'],
       ];
       return h('div', { className: 'htx-api' },
         h2('HiTrading 是什么'),
-        block(h('p', null, '一个运行在 DeepSeek Harness 内的 A股研究助手：**13 个 Agent 工具 + 一个可交互控制台**。数据存在本机 SQLite；模拟仓只在本地记账，不连接券商、不真实下单。')),
+        block(h('p', null, '一个运行在 DeepSeek Harness 内的 A股研究助手：**14 个 Agent 工具 + 一个可交互控制台**。数据存在本机 SQLite；模拟仓只在本地记账，不连接券商、不真实下单。')),
 
         h2('三种用法'),
         block(h('p', null, h('b', null, '① 控制台：'), '点左侧栏 HiTrading 图标，用下面这些 Tab 直接点击操作。')),
@@ -3167,6 +3440,7 @@ node server.js          # 默认 http://127.0.0.1:8099
       { id: 'energy', label: '量能', group: 'work', render: () => h(EnergyView) },
       { id: 'powerful', label: '强势股', group: 'work', render: () => h(PowerfulView) },
       { id: 'limitup', label: '涨停板', group: 'work', render: () => h(LimitUpView) },
+      { id: 'auction', label: '盘前竞价', group: 'work', render: () => h(AuctionView) },
       { id: 'lhb', label: '龙虎榜', group: 'work', render: () => h(LhbView) },
       { id: 'news', label: '快讯', group: 'work', render: () => h(NewsFlashView) },
       { id: 'announcement', label: '公告', group: 'work', render: () => h(AnnouncementView) },

@@ -153,6 +153,27 @@ curl -s "http://127.0.0.1:8099/api?op=limitup&date=2026-11-18"
 `value.stats`：`count firstCount againCount maxLbc maxBoard brokenCount avgFundWan totalFundYi`。
 分组口径为**当前连续涨停板数**（`lbc`），不是区间累计板数 `zttj.ct`；最新交易日为盘中实时数据（可能开板/新增），收盘后定稿。
 
+### auction — 盘前竞价（9:15–9:25 集合竞价）
+
+参数：`date`（可选，默认最新交易日；仅支持最近 10 个交易日）、`force`（竞价时段跳过 45s 缓存）
+
+```bash
+curl -s "http://127.0.0.1:8099/api?op=auction"
+curl -s "http://127.0.0.1:8099/api?op=auction&date=2026-11-20"
+```
+
+三态口径：
+- `phase:"live"`（交易日 9:15–9:25）：全市场竞价实时数据（腾讯批量行情，45s 缓存），价格随撮合变动、可撤单，`value.countdown` 为距 9:25 定格秒数；
+- `phase:"snapshot"`：9:25 定格快照（插件/独立服务内置定时器每日 09:25 自动落库），竞价格/竞价量/委比收盘后不再变化，可复盘；
+- `phase:"rebuild"`：无快照的交易日（功能上线前）用全市场开盘价重建竞价涨跌与家数分布，`items[].volume/amount/orderRatio` 为 `null`（无法回溯）。
+
+返回 `value`：`date phase phaseLabel clock countdown dates[]`（含 `hasSnapshot`）、
+`indices[]`（四大指数 `{code name open prevClose openPct}`，竞价开盘涨跌）、
+`items[]`（`code name open(竞价格) prevClose openPct volume(手) amount orderRatio(委比%) unmatched(委差手) industry ts`，按竞价涨幅降序）、
+`stats`（`total valid up down flat limitUp limitDown high3 low3 avgPct medianPct volumeShou amountYi hasVolume`）、
+`distribution[]`（11 档半开区间涨跌家数）、`watchlist[]`（自选股竞价提示，`tag` = 竞价涨停/竞价跌停/大幅高开/大幅低开/高开/低开/平开）、
+`compare`（较上一交易日 `deltaUp deltaLimitUp deltaAvgPct`）、`note sources`。
+
 ### weibo — 微博监控与股票提取
 
 参数：`action`（`list` 查看 / `extract` 提取股票）、`page`、`pageSize`（1~50）、`userId`、`keyword`、`days`、`batch`（extract 条数，1~50，默认 20）
@@ -332,6 +353,8 @@ class HiTrading:
     def trades(self, count=50):      return self._get("portfolio.trades", count=count)["items"]
     def reset_portfolio(self):       return self._post("portfolio.reset")
 
+    def auction(self, date=None):    return self._get("auction", date=date)
+
     def alerts(self):                return self._get("alerts.list")["items"]
     def alert_add(self, symbol, condition, value):
         return self._post("alerts.create", symbol=symbol, condition=condition, value=value)
@@ -351,6 +374,9 @@ ht.watch_add("600519")
 
 **找符合条件的股票**
 1. `screen` 用 `sort` + 区间过滤 → 2. 对命中前列的股票用 `quote`/`analysis` 复核 → 3. 输出表格并注明筛选条件。
+
+**开盘前快速了解市场竞价情绪**
+1. `auction` 看四大指数竞价涨跌、高开/低开家数、竞价涨停与大幅高开名单 → 2. 结合 `watchlist` 提示关注自选股竞价异动 → 3. 9:25 定格后再确认一次（`phase:"snapshot"`），再决定开盘操作。
 
 **跟踪模拟仓持仓**
 1. `portfolio.list` 取市值、当日盈亏与累计盈亏 → 2. 结合 `news`（公告/龙虎榜）补充事件 → 3. 区分「数据事实」与「你的判断」。

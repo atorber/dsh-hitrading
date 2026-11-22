@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { getWeibos } from './lib/weibo.js';
 import { runOp } from './lib/ops.js';
+import { captureAuctionSnapshot } from './lib/auction.js';
 import { openStore, defaultDbPath } from './lib/db.js';
 import { PKG_NAME, VERSION, REPO_URL, DOCS_URL } from './lib/version.js';
 
@@ -25,6 +26,7 @@ const tables = {
   weibo: store.table('weibo'),
   cash: store.table('cash'),     // 模拟仓现金账户
   trades: store.table('trades'), // 模拟仓成交流水
+  auction: store.table('auction'), // 盘前竞价 9:25 定格快照
 };
 
 const json = (res, status, payload) => {
@@ -135,6 +137,23 @@ server.on('error', (err) => {
   }
   throw err;
 });
+
+// 盘前竞价 9:25 定格采集：与 Harness 插件内的定时器共用 captureAuctionSnapshot，
+// 由 SQLite 唯一键 `auction:<date>` 保证双进程同时触发时只写一份。
+const bjNow = () => new Date(Date.now() + (8 * 60 + new Date().getTimezoneOffset()) * 60_000);
+const auctionTimer = setInterval(() => {
+  const d = bjNow();
+  if (d.getDay() === 0 || d.getDay() === 6) return;
+  const m = d.getHours() * 60 + d.getMinutes();
+  if (m < 9 * 60 + 25 || m > 9 * 60 + 30) return;
+  void captureAuctionSnapshot(tables).then((r) => {
+    if (r.ok) console.log(`[HiTrading] 盘前竞价 9:25 定格快照已保存：${r.date}（${r.count} 只）`);
+    else if (r.reason !== 'exists' && r.reason !== 'inflight' && r.reason !== 'not-trading-day') {
+      console.warn(`[HiTrading] 盘前竞价快照采集失败：${r.reason}`);
+    }
+  }).catch(() => {});
+}, 60_000);
+auctionTimer.unref();
 
 // 由 Harness 插件 spawn 时，父插件退出/卸载导致父进程消失，本服务应随之退出（避免成孤儿占端口）
 const parentPid = Number(process.env.HITRADING_PARENT_PID || 0);

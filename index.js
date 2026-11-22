@@ -7,6 +7,7 @@ import { getQuotes } from './lib/quotes.js';
 import { openStore } from './lib/db.js';
 import { getWeibos, extractStocksFromWeibos, weiboExtractStats } from './lib/weibo.js';
 import { runOp, strategies, TIERS, DOMAINS, PCT_N } from './lib/ops.js';
+import { captureAuctionSnapshot } from './lib/auction.js';
 import { VERSION } from './lib/version.js';
 
 const SKILL_PATH = new URL('./skills/hitrading/SKILL.md', import.meta.url);
@@ -127,6 +128,38 @@ function renderPowerful(v) {
     ]));
     if ((v.items || []).length > rows.length) lines.push(`…共 ${v.items.length} 只，仅显示前 60 只。`);
   }
+  lines.push('以上为市场数据，仅供研究参考，不构成投资建议。');
+  return lines.join('\n');
+}
+
+function renderAuction(v) {
+  if (v.error) return `HiTrading 盘前竞价查询失败：${v.error}`;
+  const f = (n) => (n == null ? '-' : n);
+  const pct = (n) => (n == null ? '-' : `${n > 0 ? '+' : ''}${f(n)}%`);
+  const st = v.stats || {};
+  const lines = [
+    `## 盘前竞价（${v.date} · ${v.phaseLabel || v.phase}）`,
+    `全市场 ${f(st.total)} 只（有效竞价 ${f(st.valid)}）：高开 ${f(st.up)} / 低开 ${f(st.down)} / 平开 ${f(st.flat)}，竞价涨停 ${f(st.limitUp)}、竞价跌停 ${f(st.limitDown)}，大幅高开(≥3%) ${f(st.high3)}、大幅低开(≤-3%) ${f(st.low3)}，平均竞价涨幅 ${pct(st.avgPct)}、中位数 ${pct(st.medianPct)}。`,
+  ];
+  if (st.hasVolume) lines.push(`竞价量 ${f(st.volumeShou)} 手，竞价额 ${f(st.amountYi)} 亿。`);
+  if (v.indices?.length) lines.push(`指数竞价：${v.indices.map((x) => `${x.name} ${pct(x.openPct)}`).join(' / ')}`);
+  if (v.compare?.hasStockSnapshot) lines.push(`较上一交易日（${f(v.compare.date)}）：高开家数 ${f(v.compare.deltaUp)}、竞价涨停 ${f(v.compare.deltaLimitUp)}、平均竞价涨幅 ${pct(v.compare.deltaAvgPct)}。`);
+  if (v.distribution?.length) lines.push(`涨跌家数分布：${v.distribution.map((d) => `${d.label} ${d.count}`).join(' / ')}`);
+  if (v.watchlist?.length) lines.push(`自选股竞价提示：${v.watchlist.slice(0, 12).map((r) => `${r.name}(${r.code}) ${r.tag} ${pct(r.openPct)}`).join('、')}${v.watchlist.length > 12 ? ` 等 ${v.watchlist.length} 只` : ''}`);
+  const rows = (v.items || []).slice(0, 60);
+  if (rows.length) {
+    lines.push('竞价异动（按竞价涨幅降序，前 60 只）：');
+    lines.push(toTable(rows, [
+      { label: '代码', render: (r) => r.code }, { label: '名称', render: (r) => r.name },
+      { label: '竞价格', render: (r) => f(r.open) }, { label: '昨收', render: (r) => f(r.prevClose) },
+      { label: '竞价涨幅%', render: (r) => r.openPct == null ? '-' : (r.openPct > 0 ? '+' : '') + f(r.openPct) },
+      { label: '竞价量(手)', render: (r) => f(r.volume) }, { label: '委比%', render: (r) => f(r.orderRatio) },
+      { label: '行业', render: (r) => r.industry || '-' },
+    ]));
+    if ((v.items || []).length > rows.length) lines.push(`…共 ${v.items.length} 只，仅显示前 60 只。`);
+  }
+  if (v.note) lines.push(v.note);
+  if (v.scanNote) lines.push(v.scanNote);
   lines.push('以上为市场数据，仅供研究参考，不构成投资建议。');
   return lines.join('\n');
 }
@@ -301,6 +334,7 @@ export function apply(ctx) {
     weibo: store.table('weibo'),         // 微博股票提取标记
     cash: store.table('cash'),           // 模拟仓现金账户（单行 key='account'）
     trades: store.table('trades'),       // 模拟仓成交流水
+    auction: store.table('auction'),     // 盘前竞价 9:25 定格快照（按交易日）
   };
 
   // 微博「提取股票」：用会话默认模型解析微博正文里的 A股标的
@@ -703,7 +737,20 @@ export function apply(ctx) {
     presentCall: (a) => ({ card: 'generic', title: '涨停板', rawInput: a.date || '最新交易日' }),
   }));
 
-  // 9) 微博监控
+  // 9) 盘前竞价
+  ctx.tools.register(defineTool({
+    name: 'hitrading_auction',
+    description: '查询盘前集合竞价（9:15–9:25）：当日竞价异动股票（大幅高开/低开、竞价涨停/跌停、抢筹/砸盘）、四大指数竞价涨跌、全市场涨跌家数分布、竞价量与委比、自选股竞价提示；支持最近 10 个交易日切换与昨日对比。竞价时段实时轮询，9:25 定格快照落库，非交易时段用开盘价重建。仅供研究参考，不构成投资建议。',
+    parameters: {
+      date: { type: 'string', description: '交易日 YYYY-MM-DD（可选，默认最新交易日；仅支持最近 10 个交易日）' },
+      force: { type: 'boolean', description: '竞价时段跳过 45s 缓存强制刷新（可选，默认 false）' },
+    },
+    output: { schema: { type: 'json' }, render: (_a, v) => [{ type: 'text', text: renderAuction(v) }] },
+    execute: (args) => runOp('auction', args, tables),
+    presentCall: (a) => ({ card: 'generic', title: '盘前竞价', rawInput: a.date || '最新交易日' }),
+  }));
+
+  // 10) 微博监控
   ctx.tools.register(defineTool({
     name: 'hitrading_weibo',
     description: '微博监控：action=list 查询已入库微博（按时间倒序，支持博主/关键词/近 N 天过滤，带点赞/评论/转发数）；action=extract 用模型解析未提取微博里的 A股标的并写入自选（已存在则只更新最后提及时间，已提取过的微博不重复处理）。需本地已运行 Weibo Crawler 服务（默认 127.0.0.1:15001）。',
@@ -727,7 +774,7 @@ export function apply(ctx) {
     presentCall: (a) => ({ card: 'generic', title: '微博监控', rawInput: a }),
   }));
 
-  // 9) 模拟仓
+  // 11) 模拟仓
   ctx.tools.register(defineTool({
     name: 'hitrading_portfolio',
     description: '模拟仓交易与持仓（纯本地记账，不接券商、不下真实订单）：买入/卖出按实时现价成交（可指定价格），带现金账户（初始 171 万）与成交流水；查看实时市值、累计盈亏与当日盈亏（较昨收）。',
@@ -749,7 +796,7 @@ export function apply(ctx) {
     presentCall: (a) => ({ card: 'generic', title: '模拟仓', rawInput: a }),
   }));
 
-  // 10) 资讯
+  // 12) 资讯
   ctx.tools.register(defineTool({
     name: 'hitrading_news',
     description: '获取 A股资讯：快讯（news）、个股公告（announcement，需代码）、龙虎榜（lhb，全市场最近交易日）。',
@@ -763,7 +810,7 @@ export function apply(ctx) {
     presentCall: (a) => ({ card: 'generic', title: 'A股资讯', rawInput: a }),
   }));
 
-  // 11) 回测
+  // 13) 回测
   ctx.tools.register(defineTool({
     name: 'hitrading_backtest',
     description: '对单只 A股跑内置量化策略回测（双均线 / MACD / RSI 超买超卖），输出收益、回撤、夏普、胜率与最近交易。纯本地计算。',
@@ -782,7 +829,7 @@ export function apply(ctx) {
     presentCall: (a) => ({ card: 'generic', title: 'A股策略回测', rawInput: { symbol: a.symbol, strategy: a.strategy } }),
   }));
 
-  // 12) 预警
+  // 14) 预警
   ctx.tools.register(defineTool({
     name: 'hitrading_alert',
     description: '管理预警规则：创建、查看、删除。规则可设价格/涨跌幅阈值（GUI 内提醒，见后续定时器）。',
@@ -835,6 +882,25 @@ export function apply(ctx) {
     };
     const dispose = ctx.timer.interval(() => { void check(); }, 60_000);
     void check();
+    return dispose;
+  });
+
+  // 盘前竞价 9:25 定格采集：每 60s 检查一次北京时间，交易日 09:25~09:30 内尝试落库一次，
+  // 快照已存在 / 非交易日 / 采集中均直接跳过；采集失败下一分钟自动重试。
+  ctx.effect(() => {
+    const bjNow = () => new Date(Date.now() + (8 * 60 + new Date().getTimezoneOffset()) * 60_000);
+    const dispose = ctx.timer.interval(() => {
+      const d = bjNow();
+      if (d.getDay() === 0 || d.getDay() === 6) return;
+      const m = d.getHours() * 60 + d.getMinutes();
+      if (m < 9 * 60 + 25 || m > 9 * 60 + 30) return;
+      void captureAuctionSnapshot(tables).then((r) => {
+        if (r.ok) ctx.logger.info(`[HiTrading] 盘前竞价 9:25 定格快照已保存：${r.date}（${r.count} 只）`);
+        else if (r.reason !== 'exists' && r.reason !== 'inflight' && r.reason !== 'not-trading-day') {
+          ctx.logger.warn(`[HiTrading] 盘前竞价快照采集失败：${r.reason}`);
+        }
+      }).catch((e) => ctx.logger.warn(`[HiTrading] 盘前竞价快照采集异常：${errMsg(e)}`));
+    }, 60_000);
     return dispose;
   });
 

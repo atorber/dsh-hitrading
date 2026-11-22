@@ -41,6 +41,7 @@ export default defineConfig({
             { label: '市场量能', slug: 'guide/energy' },
             { label: '强势股', slug: 'guide/powerful' },
             { label: '涨停板', slug: 'guide/limitup' },
+        { label: '盘前竞价', slug: 'guide/auction' },
             { label: '选股', slug: 'guide/screen' },
             { label: '模拟仓与回测', slug: 'guide/portfolio-backtest' },
             { label: '资讯与预警', slug: 'guide/news-alerts' },

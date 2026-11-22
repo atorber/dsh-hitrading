@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@atorber/hitrading.svg)](https://www.npmjs.com/package/@atorber/hitrading) [![CI](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/actions/workflows/ci.yml) [![Release](https://github.com/atorber/dsh-hitrading/actions/workflows/release.yml/badge.svg)](https://github.com/atorber/dsh-hitrading/releases) [![Docs](https://github.com/atorber/dsh-hitrading/actions/workflows/docs.yml/badge.svg)](https://atorber.github.io/dsh-hitrading/)
 
-运行在当前 DeepSeek Harness 内的 Cordis 插件。为 Agent 提供 **13 个 A股工具**，并在 Web GUI 左侧栏挂出 **HiTrading 交互控制台**（15 个 Tab，所有模块都有 UI）。
+运行在当前 DeepSeek Harness 内的 Cordis 插件。为 Agent 提供 **14 个 A股工具**，并在 Web GUI 左侧栏挂出 **HiTrading 交互控制台**（16 个 Tab，所有模块都有 UI）。
 
 > 纯分析与跟踪，**不连接券商、不真实下单**；所有结论附投资风险提示，数据来自公开免费接口。
 
@@ -10,7 +10,7 @@
 
 ## 交互控制台（UI）
 
-左侧栏点 HiTrading 图标打开，含 15 个 Tab，全部通过 `/api/hitrading` 实时读写 Host 数据：
+左侧栏点 HiTrading 图标打开，含 16 个 Tab，全部通过 `/api/hitrading` 实时读写 Host 数据：
 
 | Tab | 能做什么 |
 |---|---|
@@ -18,6 +18,7 @@
 | 量能 | 沪深京成交额趋势、情绪仪表（三档操作参考：谨慎区/过渡区/参与区）、涨跌家数对比、涨停跌停统计、指数涨跌与明细表 |
 | 强势股 | 按交易日看当日涨幅 > 7% 的股票：左侧日期导航（最近 10 日）、涨停/连板、首封时间、行业、最新涨跌、一键加自选 |
 | 涨停板 | 按连板梯队（首板/二板/三板…）列出当日涨停股：左侧日期导航与涨停家数、封单/炸板/封板时间/行业、梯队筛选、一键加自选 |
+| 盘前竞价 | 9:15–9:25 集合竞价实时异动（抢筹/砸盘/竞价涨停跌停）、四大指数竞价、11 档涨跌家数分布、竞价量/委比、自选竞价提示；9:25 自动定格快照落库，最近 10 个交易日可复盘 |
 | 龙虎榜 | 独立 Tab：资金摘要、多空分歧榜、上榜原因、净买额排序、只看自选 |
 | 快讯 | A股 7×24 快讯：监管/宏观/行情分类标记、监管动态提醒卡、只看自选 |
 | 公告 | 个股公告：类型分类（业绩/激励/并购/增减持/分红/融资/治理）、按代码查询、一键加自选 |
@@ -26,7 +27,7 @@
 | 选股 | 排序字段 + 区间过滤（市盈率/市值/涨跌幅/换手）+ 结果表 |
 | 回测 | 策略选择 + 参数 + **权益曲线图** + 收益/回撤/夏普/胜率 |
 | 预警 | 价格/涨跌幅规则增删 + 触发状态 |
-| Agent 技能 | 13 个工具的提示词示例（可复制 / **一键试用**：新开一个会话并把提示词填进输入框，确认后回车发送）+ 给其他 Agent 安装 SKILL.md 的说明与全文 |
+| Agent 技能 | 14 个工具的提示词示例（可复制 / **一键试用**：新开一个会话并把提示词填进输入框，确认后回车发送）+ 给其他 Agent 安装 SKILL.md 的说明与全文 |
 | API | 独立 HTTP 服务接口文档（参数表 + 请求/响应示例） |
 | 使用说明 | 整体上手引导、Tab 速览、数据与存储说明 |
 
@@ -41,6 +42,7 @@
 | `hitrading_market_energy` | 沪深京三市日成交额 + 量能状态（东财） |
 | `hitrading_powerful` | 强势股：按交易日查当日涨幅>7%（涨停/连板/行业，东财） |
 | `hitrading_limitup` | 涨停板：按连板梯队（首板/二板/三板…）查当日涨停股（封单/炸板/封板时间/行业，东财涨停看板） |
+| `hitrading_auction` | 盘前竞价：竞价异动（大幅高开/低开、竞价涨停/跌停）、四大指数竞价、涨跌家数分布、竞价量与委比（9:15–9:25 实时，9:25 定格快照，可查最近 10 个交易日） |
 | `hitrading_watchlist` | 自选股管理（持久化）+ 关注度分级 + 领域分类（大金融/消费/周期/科技）+ 多标签 |
 | `hitrading_portfolio` | 模拟仓买卖与持仓（本地记账、不接券商）：现金账户 + 成交流水 + 当日盈亏/累计盈亏 |
 | `hitrading_weibo` | 微博监控（本地 Weibo Crawler）+ **提取股票**（模型解析写入自选） |
@@ -80,7 +82,7 @@
 - `GET /api?op=<op>&...`
 - `POST /api`，body `{ "op": "<op>", "args": {...} }`
 
-`op` 与 Agent 工具同名：`quote` / `kline` / `analysis` / `screen` / `market_energy` / `powerful` / `limitup` / `watchlist.list|add|remove` / `portfolio.buy|sell|list|trades|reset` / `news` / `backtest` / `alerts.list|create|delete` / `weibo`（列表），另有 `version`（包名/版本/仓库/文档地址）。
+`op` 与 Agent 工具同名：`quote` / `kline` / `analysis` / `screen` / `market_energy` / `powerful` / `limitup` / `auction` / `watchlist.list|add|remove` / `portfolio.buy|sell|list|trades|reset` / `news` / `backtest` / `alerts.list|create|delete` / `weibo`（列表），另有 `version`（包名/版本/仓库/文档地址）。
 
 ```python
 import requests
@@ -122,9 +124,10 @@ curl -o <技能目录>/hitrading/SKILL.md http://127.0.0.1:8099/skill.md
 
 ```
 index.js            # Host 入口：工具 + /api/hitrading 路由 + 定时器 + 免责声明
-client.js           # Client 入口：sidebar 图标 + 15-Tab 交互控制台
+client.js           # Client 入口：sidebar 图标 + 16-Tab 交互控制台
 server.js           # 独立本地 HTTP 服务（供外部程序/量化脚本）
-lib/ops.js          # 单一真相源：13 个 A股操作（工具/路由/独立服务共用）
+lib/ops.js          # 单一真相源：A股操作（工具/路由/独立服务共用）
+lib/auction.js      # 盘前竞价三态引擎（实时 / 定格快照 / 开盘价重建）
 lib/db.js           # 跨进程共享的 SQLite 存储
 lib/*.js            # 数据适配（http/quotes/kline/market/news/backtest/indicators/symbol）
 cordis.patch.yml    # Loader 插入行
@@ -192,7 +195,7 @@ git clone https://github.com/atorber/dsh-hitrading.git
 # 在 Harness 内：plugin_manager install_bundle target=<仓库绝对路径>
 ```
 
-安装后 `hitrading` 插件激活，在左侧栏出现 HiTrading 图标与面板，对话中可用上述 13 个工具。
+安装后 `hitrading` 插件激活，在左侧栏出现 HiTrading 图标与面板，对话中可用上述 14 个工具。
 
 ## 本地开发注意
 
