@@ -1,0 +1,66 @@
+name: Publish to npm
+
+# 打 v*.*.* 标签时自动发布到 npm；也可以在 Actions 页手动触发（用于补发已有版本）。
+# 前置条件：仓库 Settings → Secrets and variables → Actions 里配置 NPM_TOKEN。
+# 建议使用 npm 的 Automation Token（开启 2FA 的账号用 ordinary token 会失败）。
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm provenance：把发布与本次 GitHub Actions 运行绑定
+
+jobs:
+  publish:
+    name: 发布 @atorber/hitrading 到 npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 版本一致性 / 清单校验
+        run: |
+          npm run check:version
+          npm run check:manifest
+
+      - name: 打包检查
+        run: npm pack --dry-run
+
+      - name: 检查版本是否已发布（幂等）
+        id: published
+        run: |
+          NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "name=$NAME version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "already=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VERSION 已发布，本次跳过"
+          else
+            echo "already=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 校验 NPM_TOKEN
+        if: steps.published.outputs.already != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::error::NPM_TOKEN 未配置。请在仓库 Settings → Secrets and variables → Actions 中添加 NPM_TOKEN（npm Automation Token）。"
+            exit 1
+          fi
+          echo "NPM_TOKEN 已配置"
+
+      - name: 发布
+        if: steps.published.outputs.already != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance
+
+      - name: 结果
+        run: echo "::notice::发布流程完成：${{ steps.published.outputs.name }}@${{ steps.published.outputs.version }}（本次之前已发布=${{ steps.published.outputs.already }}）"

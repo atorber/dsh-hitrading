@@ -45,7 +45,10 @@ npm run check:version
 
 校验内容：`version` 必须是 `x.y.z`；`CHANGELOG.md` 里必须有对应版本的段落；版本号不能低于 CHANGELOG 已发布的最高版本；发布流水线里 tag 必须等于 `package.json` 的版本（避免 tag 打 `v1.2.0` 却发布 1.1.0 的包）。
 
-打上 `v*.*.*` 标签后 `.github/workflows/release.yml` 依次执行：语法检查 → 版本一致性校验 → `npm pack` → 生成 Release 说明 → 上传 `hitrading.tgz`。
+打上 `v*.*.*` 标签后有两个工作流同时触发：
+
+- `.github/workflows/release.yml`：语法检查 → 版本一致性校验 → `npm pack` → 生成 Release 说明 → 上传 `hitrading.tgz` 创建 GitHub Release。
+- `.github/workflows/npm-publish.yml`：版本/清单校验 → `npm pack --dry-run` → 若该版本尚未发布则 `npm publish --provenance`（需 `NPM_TOKEN`，配置方法见[第 2 步](#第-2-步发布到-npm推荐非必须)）。
 
 ## 发布到 dshmarket 市场
 
@@ -79,10 +82,21 @@ gh api -X PUT repos/atorber/dsh-hitrading/topics \
 
 发布 npm 后安装时跳过构建审批（`allowBuilds`），市场也会优先下载 npm tarball 而不是整个 GitHub 仓库。
 
+本项目已配置 `.github/workflows/npm-publish.yml`：**打 `v*.*.*` 标签时自动发布**，与 GitHub Release 同步。你只需一次性配置一个 Secret：
+
+1. 在 [npmjs.com](https://www.npmjs.com/settings/atorber/tokens) 生成一枚 **Automation Token**（账号开了 2FA 就必须用这种，普通 token 在 CI 里会失败）。
+2. 在仓库 `Settings → Secrets and variables → Actions → New repository secret` 新建 `NPM_TOKEN`，值为刚才那枚 token。
+
+之后每次推送 tag，流水线会：校验版本一致性与清单 → `npm pack --dry-run` 检查产物 → 若该版本尚未发布则 `npm publish --access public --provenance`。`--provenance` 会把发布与本次 Actions 运行绑定，包页面显示可验证的来源徽标。已在 registry 上的版本会跳过，重复触发不会报错。
+
+也可以在 Actions 页面手动 `workflow_dispatch` 补发某个已有 tag 的版本（用于 Secret 后来才配置好的情况）。
+
+如果你更想在本地手动发布，也可以：
+
 ```bash
 npm login                                  # 需要 npmjs.com 账号
 npm config set registry https://registry.npmjs.org
-npm publish                                # publishConfig.access=public，直接发公开包
+npm publish --access public                # publishConfig.access=public
 ```
 
 :::caution[注意]

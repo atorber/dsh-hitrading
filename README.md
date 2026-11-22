@@ -160,7 +160,7 @@ npm run check:version     # version 格式、CHANGELOG 段落、是否低于已�
 dshmarket（[dshmarket.com](https://dshmarket.com/)）的目录数据来自 [awesome-dsh-plugin](https://awesome-dsh-plugin.com/)，每日 CI 刷新，所以「上架」= 让仓库被该目录收录。本仓库已备齐材料，按 [发布指南](https://atorber.github.io/dsh-hitrading/release/) 执行即可：
 
 1. 给仓库加 GitHub topic `dsh-plugin`：`gh api -X PUT repos/atorber/dsh-hitrading/topics -f names[]=dsh-plugin`
-2. （推荐）发布到 npm：`npm login && npm config set registry https://registry.npmjs.org && npm publish`
+2. （推荐）发布到 npm：**已自动化**——配置仓库 Secret `NPM_TOKEN`（npm Automation Token）后，打 `v*.*.*` 标签即由 `.github/workflows/npm-publish.yml` 自动 `npm publish --provenance`；也可在 Actions 页手动触发补发。详见[发布指南](https://atorber.github.io/dsh-hitrading/release/)
 3. 向 [awesome-dsh-plugin/awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提 PR，**只加一个文件** `data/plugins/atorber__dsh-hitrading.yml`，内容用本仓库的 [`market/atorber__dsh-hitrading.yml`](./market/atorber__dsh-hitrading.yml)
 4. 目录合并后次日生效，用户在 Harness 内即可搜到并一键安装
 
