@@ -1,8 +1,15 @@
 name: Publish to npm
 
 # 打 v*.*.* 标签时自动发布到 npm；也可以在 Actions 页手动触发（用于补发已有版本）。
-# 前置条件：仓库 Settings → Secrets and variables → Actions 里配置 NPM_TOKEN。
-# 建议使用 npm 的 Automation Token（开启 2FA 的账号用 ordinary token 会失败）。
+# 免 token：使用 npm Trusted Publishing（OIDC），无需在仓库里配置 NPM_TOKEN。
+# 一次性前置条件：在 npmjs.com → @atorber/hitrading → Settings → Trusted publishing
+# 添加 GitHub Actions 发布者：
+#   Organization or user: atorber
+#   Repository:           dsh-hitrading
+#   Workflow filename:    npm-publish.yml（只填文件名，不含路径）
+#   Allowed actions:      勾选 "npm publish"（新配置默认只允许 npm stage publish，
+#                         不勾选则本工作流的 npm publish 会被拒绝）
+# 详见 docs/src/content/docs/release.mdx。
 on:
   push:
     tags: ['v*.*.*']
@@ -10,19 +17,20 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance：把发布与本次 GitHub Actions 运行绑定
+  id-token: write # OIDC：npm Trusted Publishing 用短时凭证换发布令牌
 
 jobs:
   publish:
     name: 发布 @atorber/hitrading 到 npm
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false # 发布构建不使用依赖缓存
 
       - name: 版本一致性 / 清单校验
         run: |
@@ -45,22 +53,11 @@ jobs:
             echo "already=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 校验 NPM_TOKEN
+      - name: 发布（Trusted Publishing / OIDC，无需 token）
         if: steps.published.outputs.already != 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::NPM_TOKEN 未配置。请在仓库 Settings → Secrets and variables → Actions 中添加 NPM_TOKEN（npm Automation Token）。"
-            exit 1
-          fi
-          echo "NPM_TOKEN 已配置"
-
-      - name: 发布
-        if: steps.published.outputs.already != 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        # npm CLI 自动检测 GitHub Actions 的 OIDC 环境换取短时发布凭证；
+        # provenance 由 npm 自动生成，无需 --provenance 参数。
+        run: npm publish --access public
 
       - name: 结果
         run: echo "::notice::发布流程完成：${{ steps.published.outputs.name }}@${{ steps.published.outputs.version }}（本次之前已发布=${{ steps.published.outputs.already }}）"

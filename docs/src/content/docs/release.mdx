@@ -48,7 +48,7 @@ npm run check:version
 打上 `v*.*.*` 标签后有两个工作流同时触发：
 
 - `.github/workflows/release.yml`：语法检查 → 版本一致性校验 → `npm pack` → 生成 Release 说明 → 上传 `hitrading.tgz` 创建 GitHub Release。
-- `.github/workflows/npm-publish.yml`：版本/清单校验 → `npm pack --dry-run` → 若该版本尚未发布则 `npm publish --provenance`（需 `NPM_TOKEN`，配置方法见[第 2 步](#第-2-步发布到-npm推荐非必须)）。
+- `.github/workflows/npm-publish.yml`：版本/清单校验 → `npm pack --dry-run` → 若该版本尚未发布则 `npm publish`。**免 token**，使用 npm Trusted Publishing（OIDC），一次性配置见[第 2 步](#第-2-步发布到-npm推荐非必须)。
 
 ## 发布到 dshmarket 市场
 
@@ -82,14 +82,24 @@ gh api -X PUT repos/atorber/dsh-hitrading/topics \
 
 发布 npm 后安装时跳过构建审批（`allowBuilds`），市场也会优先下载 npm tarball 而不是整个 GitHub 仓库。
 
-本项目已配置 `.github/workflows/npm-publish.yml`：**打 `v*.*.*` 标签时自动发布**，与 GitHub Release 同步。你只需一次性配置一个 Secret：
+本项目已配置 `.github/workflows/npm-publish.yml`：**打 `v*.*.*` 标签时自动发布**，与 GitHub Release 同步。发布使用 [npm Trusted Publishing（OIDC）](https://docs.npmjs.com/trusted-publishers/)，**无需任何 token / Secret**，只需在 npmjs.com 一次性登记这个工作流：
 
-1. 在 [npmjs.com](https://www.npmjs.com/settings/atorber/tokens) 生成一枚 **Automation Token**（账号开了 2FA 就必须用这种，普通 token 在 CI 里会失败）。
-2. 在仓库 `Settings → Secrets and variables → Actions → New repository secret` 新建 `NPM_TOKEN`，值为刚才那枚 token。
+1. 打开 [npmjs.com → @atorber/hitrading → Settings → Trusted publishing](https://www.npmjs.com/package/@atorber/hitrading/settings/trusted-publishing)，点 **Add trusted publisher**，选择 **GitHub Actions**。
+2. 填写（必须与仓库/工作流完全一致）：
+   - Organization or user: `atorber`
+   - Repository: `dsh-hitrading`
+   - Workflow filename: `npm-publish.yml`（**只填文件名**，不含 `.github/workflows/` 路径）
+   - Environment: 留空
+   - Allowed actions: **勾选 `npm publish`**（新登记的默认只允许 `npm stage publish`，不勾选则本工作流的直接发布会被拒绝）
+3. 保存。首次登记的配置需在 **2 天内完成一次成功发布**才会正式绑定，否则会过期需重新添加。
 
-之后每次推送 tag，流水线会：校验版本一致性与清单 → `npm pack --dry-run` 检查产物 → 若该版本尚未发布则 `npm publish --access public --provenance`。`--provenance` 会把发布与本次 Actions 运行绑定，包页面显示可验证的来源徽标。已在 registry 上的版本会跳过，重复触发不会报错。
+之后每次推送 tag，流水线会：校验版本一致性与清单 → `npm pack --dry-run` 检查产物 → 若该版本尚未发布则 `npm publish --access public`。npm CLI 自动检测 GitHub Actions 的 OIDC 环境，用短时凭证换发布令牌；**provenance 由 npm 自动生成**，无需 `--provenance` 参数。已在 registry 上的版本会跳过，重复触发不会报错。
 
-也可以在 Actions 页面手动 `workflow_dispatch` 补发某个已有 tag 的版本（用于 Secret 后来才配置好的情况）。
+也可以在 Actions 页面手动 `workflow_dispatch` 补发某个已有 tag 的版本。
+
+:::tip[为什么不再用 NPM_TOKEN]
+长期有效的 token 有泄露和轮换风险；Trusted Publishing 每次发布用短时、绑定工作流的 OIDC 凭证，无法被提取复用。旧的 `NPM_TOKEN` Secret 已不再使用，可以在仓库 Settings → Secrets 中删除，并在 npmjs.com 撤销对应 token。
+:::
 
 如果你更想在本地手动发布，也可以：
 

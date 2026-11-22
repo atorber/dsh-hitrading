@@ -22,7 +22,7 @@ git push origin main --follow-tags
 ### 新增
 
 - `version` 操作：`GET /api?op=version` 返回包名、版本、仓库与文档地址；面板顶部右侧常驻版本徽标。
-- `.github/workflows/npm-publish.yml`：打 `v*.*.*` 标签时自动发布到 npm（需仓库 Secret `NPM_TOKEN`，`npm publish --provenance`，已发布版本幂等跳过）。
+- `.github/workflows/npm-publish.yml`：打 `v*.*.*` 标签时自动发布到 npm（npm Trusted Publishing / OIDC，免 token，provenance 自动生成，已发布版本幂等跳过）。
 
 ## [1.1.0] - 2026-11-22
 
