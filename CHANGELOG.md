@@ -19,10 +19,11 @@ git push origin main --follow-tags
 
 ## [Unreleased]
 
-### 新增
+## [1.1.1] - 2026-11-22
 
-- `version` 操作：`GET /api?op=version` 返回包名、版本、仓库与文档地址；面板顶部右侧常驻版本徽标。
-- `.github/workflows/npm-publish.yml`：打 `v*.*.*` 标签时自动发布到 npm（npm Trusted Publishing / OIDC，免 token，provenance 自动生成，已发布版本幂等跳过）。
+### 变更
+
+- npm 发布流水线改用 npm Trusted Publishing（OIDC），移除 `NPM_TOKEN` Secret 依赖；provenance 由 npm 针对 OIDC 发布自动生成。
 
 ## [1.1.0] - 2026-11-22
 
@@ -40,7 +41,8 @@ git push origin main --follow-tags
 - **量能模块升级**：情绪仪表、每日涨跌家数对比、三档操作参考（谨慎 / 过渡 / 参与）。
 - 自选页新增「如何构建自己的股票池」方法论说明卡。
 - 官网文档站（Astro + Starlight，含真实 GUI 截图与架构图）。
-- CI / Release GitHub Actions：双 Node 版本语法、清单、打包与冒烟校验。
+- `version` 操作与面板版本徽标：包名/版本/仓库/文档地址从 `package.json` 单一来源读取。
+- CI / Release GitHub Actions：双 Node 版本语法、清单、打包与冒烟校验；打 tag 自动发布 npm。
 
 ### 修复
 
@@ -62,6 +64,7 @@ git push origin main --follow-tags
 
 首个公开版本：11 个 Agent 工具 + 11-Tab 控制台 + 独立本地 HTTP 服务（默认 8099），SQLite 持久化自选/持仓/预警，纯分析不下单。
 
-[Unreleased]: https://github.com/atorber/dsh-hitrading/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/atorber/dsh-hitrading/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/atorber/dsh-hitrading/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/atorber/dsh-hitrading/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/atorber/dsh-hitrading/releases/tag/v1.0.0
